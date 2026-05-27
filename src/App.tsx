@@ -58,6 +58,7 @@ import {
 import {
   commercialReadiness,
   createProviderJob,
+  createActionResult,
   createWorkspaceVersion,
   defaultCostPolicy,
   defaultOnboardingState,
@@ -66,6 +67,8 @@ import {
   defaultWorkspaceAccount,
   onboardingSteps,
   rightsProgress,
+  type ActionResult,
+  type ActionResultKind,
   type CostPolicy,
   type ProviderJob,
   type RightsChecklistKey,
@@ -101,10 +104,21 @@ const jobsStorageKey = "stagewrite.providerJobs.v1";
 const rightsStorageKey = "stagewrite.rights.v1";
 const costPolicyStorageKey = "stagewrite.costPolicy.v1";
 const onboardingStorageKey = "stagewrite.onboarding.v1";
+const resultsStorageKey = "stagewrite.results.v1";
 
 const settingSteps = ["기본", "세계", "인물", "구조", "음악", "제작"];
 
-type AppPage = "workspace" | "overview" | "bible" | "songs" | "export" | "billing" | "ops" | "launch" | "mobile";
+type AppPage =
+  | "workspace"
+  | "overview"
+  | "bible"
+  | "songs"
+  | "export"
+  | "billing"
+  | "ops"
+  | "launch"
+  | "mobile"
+  | "results";
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
@@ -207,6 +221,7 @@ export function App() {
   const [rightsState, setRightsState] = useState<RightsState>(() => loadJson(rightsStorageKey, defaultRightsState));
   const [costPolicy, setCostPolicy] = useState<CostPolicy>(() => loadJson(costPolicyStorageKey, defaultCostPolicy));
   const [onboardingState, setOnboardingState] = useState(() => loadJson(onboardingStorageKey, defaultOnboardingState));
+  const [actionResults, setActionResults] = useState<ActionResult[]>(() => loadJson(resultsStorageKey, []));
   const [inviteEmail, setInviteEmail] = useState("director@example.com");
   const [shareLink, setShareLink] = useState("https://sequenzen.github.io/ai-musical-workstation/");
   const [checkoutStatus, setCheckoutStatus] = useState("아직 checkout 세션을 만들지 않았습니다.");
@@ -286,6 +301,10 @@ export function App() {
     localStorage.setItem(onboardingStorageKey, JSON.stringify(onboardingState));
   }, [onboardingState]);
 
+  useEffect(() => {
+    localStorage.setItem(resultsStorageKey, JSON.stringify(actionResults));
+  }, [actionResults]);
+
   function addUsage(event: UsageEvent) {
     setUsageLedger((current) => [event, ...current].slice(0, 40));
   }
@@ -315,6 +334,30 @@ export function App() {
     }));
   }
 
+  function recordActionResult(input: {
+    kind: ActionResultKind;
+    title: string;
+    sourceButton: string;
+    summary: string;
+    detail: string;
+    targetPage?: AppPage;
+    openResults?: boolean;
+  }) {
+    const result = createActionResult({
+      kind: input.kind,
+      title: input.title,
+      sourceButton: input.sourceButton,
+      summary: input.summary,
+      detail: input.detail,
+      projectId: project.id,
+      projectTitle: project.title,
+      targetPage: input.targetPage,
+    });
+    setActionResults((current) => [result, ...current].slice(0, 80));
+    if (input.openResults) setActivePage("results");
+    return result;
+  }
+
   async function checkUsageAllowance(requestedCost: number) {
     const preview = await previewUsageLimit({
       policy: costPolicy,
@@ -337,12 +380,30 @@ export function App() {
     const version = createWorkspaceVersion(project, workspaceAccount.ownerName, "서버 동기화 스냅샷");
     setVersions((current) => [version, ...current].slice(0, 12));
     setWorkspaceAccount((current) => ({ ...current, storageMode: "server-sync" }));
+    recordActionResult({
+      kind: "ops",
+      title: "서버 동기화 결과",
+      sourceButton: "서버 동기화 mock",
+      summary: `${projects.length}개 프로젝트, ${versions.length + 1}개 버전 동기화`,
+      detail: `${result.provider}가 ${result.syncedAt}에 workspace sync를 완료했습니다.`,
+      targetPage: "ops",
+      openResults: true,
+    });
     setNotice(`${result.provider}에 ${projects.length}개 프로젝트를 동기화했습니다.`);
   }
 
   function handleCreateVersion(label = "작업 스냅샷") {
     const version = createWorkspaceVersion(project, workspaceAccount.ownerName, label);
     setVersions((current) => [version, ...current].slice(0, 12));
+    recordActionResult({
+      kind: "ops",
+      title: "버전 저장 결과",
+      sourceButton: "버전 저장",
+      summary: `${version.label} 저장 완료`,
+      detail: `${version.projectTitle}의 ${version.summary} 상태를 ${version.createdAt}에 저장했습니다.`,
+      targetPage: "ops",
+      openResults: true,
+    });
     setNotice(`${version.label}을 저장했습니다. 버전 히스토리에서 복원할 수 있습니다.`);
   }
 
@@ -357,6 +418,14 @@ export function App() {
     });
     setActiveProjectId(version.snapshot.id);
     setActivePage("workspace");
+    recordActionResult({
+      kind: "ops",
+      title: "버전 복원 결과",
+      sourceButton: version.label,
+      summary: `${version.projectTitle} 복원 완료`,
+      detail: `${version.createdAt.slice(0, 10)}에 저장된 스냅샷을 작업실로 복원했습니다.`,
+      targetPage: "workspace",
+    });
     setNotice(`${version.label} 버전을 복원했습니다.`);
   }
 
@@ -364,6 +433,15 @@ export function App() {
     const session = await createCheckoutSession(planToBuy);
     setPlanId(planToBuy);
     setCheckoutStatus(`${session.status === "mock" ? "mock checkout" : "Stripe checkout"}: ${session.sessionId}`);
+    recordActionResult({
+      kind: "billing",
+      title: "Checkout 세션 결과",
+      sourceButton: `${plans[planToBuy].name} checkout`,
+      summary: `${plans[planToBuy].name} 플랜 checkout 세션 생성`,
+      detail: `세션 ID: ${session.sessionId}. 실제 결제 키가 연결되면 ${session.url}로 redirect합니다.`,
+      targetPage: "billing",
+      openResults: true,
+    });
     setNotice(`${plans[planToBuy].name} checkout 세션을 만들었습니다. 실제 결제 키가 있으면 ${session.url}로 연결됩니다.`);
   }
 
@@ -390,6 +468,15 @@ export function App() {
       accepted: true,
       acceptedAt: result.acknowledgedAt,
     }));
+    recordActionResult({
+      kind: "ops",
+      title: "권리 확인 결과",
+      sourceButton: "권리 확인 기록",
+      summary: `${project.title} 권리 체크 기록 완료`,
+      detail: `권리 기록 ID: ${result.rightsId}. 체크리스트 ${rightsProgress(rightsState)}% 상태에서 저장했습니다.`,
+      targetPage: "ops",
+      openResults: true,
+    });
     setNotice(`권리 확인 기록을 저장했습니다. ID: ${result.rightsId}`);
   }
 
@@ -404,6 +491,15 @@ export function App() {
     const result = await createTeamInvite(member);
     setTeamMembers((current) => [member, ...current]);
     setShareLink(result.shareLink);
+    recordActionResult({
+      kind: "collaboration",
+      title: "팀 초대 결과",
+      sourceButton: "초대",
+      summary: `${member.email} 초대 링크 생성`,
+      detail: `초대 링크: ${result.shareLink}`,
+      targetPage: "ops",
+      openResults: true,
+    });
     setNotice(`${member.email} 초대 링크를 만들었습니다.`);
   }
 
@@ -414,6 +510,14 @@ export function App() {
         : [...current.completedSteps, step],
       currentStep: Math.min(onboardingSteps.length - 1, index + 1),
     }));
+    recordActionResult({
+      kind: "ops",
+      title: "온보딩 단계 결과",
+      sourceButton: step,
+      summary: `${index + 1}단계 완료`,
+      detail: `${step} 단계를 완료 처리했습니다. 다음 단계는 ${onboardingSteps[index + 1] ?? "없음"}입니다.`,
+      targetPage: "ops",
+    });
     setNotice(`${step} 단계를 완료 처리했습니다.`);
   }
 
@@ -428,6 +532,15 @@ export function App() {
     if (next.status === "ready" && next.type === "reading") {
       setReadingStatus("ready");
     }
+    recordActionResult({
+      kind: next.type === "music" ? "music" : "reading",
+      title: "Provider 작업 상태 결과",
+      sourceButton: "polling",
+      summary: `${next.title}: ${next.status}`,
+      detail: `${next.provider} 작업 ${next.providerTaskId} 상태를 ${next.updatedAt}에 갱신했습니다.`,
+      targetPage: "ops",
+      openResults: true,
+    });
     setNotice(`${next.title} 작업 상태: ${next.status}`);
   }
 
@@ -444,7 +557,31 @@ export function App() {
           : job,
       ),
     );
+    recordActionResult({
+      kind: "ops",
+      title: "Provider 재시도 결과",
+      sourceButton: "retry",
+      summary: "작업을 queued 상태로 되돌렸습니다.",
+      detail: `작업 ID ${jobId}를 재시도 대기열로 보냈습니다.`,
+      targetPage: "ops",
+      openResults: true,
+    });
     setNotice("provider 작업을 재시도 대기열로 보냈습니다.");
+  }
+
+  function handleCreateMobileShare() {
+    const link = `${window.location.origin}${window.location.pathname}?project=${project.id}`;
+    setShareLink(link);
+    recordActionResult({
+      kind: "collaboration",
+      title: "모바일 공유 링크 결과",
+      sourceButton: "모바일 공유 링크 생성",
+      summary: `${project.title} 모바일 리뷰 링크 생성`,
+      detail: link,
+      targetPage: "mobile",
+      openResults: true,
+    });
+    setNotice("모바일 리뷰용 공유 링크를 만들었습니다.");
   }
 
   function handleCreateProject() {
@@ -494,6 +631,15 @@ export function App() {
 
   function handleSave() {
     localStorage.setItem(projectsStorageKey, JSON.stringify(projects));
+    recordActionResult({
+      kind: "system",
+      title: "저장 결과",
+      sourceButton: "저장",
+      summary: `${project.title} 브라우저 저장 완료`,
+      detail: "프로젝트, 생성 조건, 대본, 음악 큐, 코멘트가 localStorage에 저장되었습니다.",
+      targetPage: "workspace",
+      openResults: true,
+    });
     setNotice("프로젝트, 조건, 대본, 음악 큐를 브라우저 저장소에 저장했습니다.");
   }
 
@@ -507,6 +653,14 @@ export function App() {
       aiSuggestions: buildAiSuggestions({ ...project, bible, cues }),
     });
     setActiveCue(cues[0]?.id ?? 1);
+    recordActionResult({
+      kind: "generation",
+      title: "스토리 바이블 갱신 결과",
+      sourceButton: "조건으로 바이블 갱신",
+      summary: `${bible.characters.length}명 캐릭터, ${bible.sceneCards.length}개 씬 카드 갱신`,
+      detail: bible.synopsis,
+      targetPage: "bible",
+    });
     setNotice("현재 조건으로 스토리 바이블, 씬 카드, 넘버 맵을 다시 구성했습니다.");
   }
 
@@ -526,6 +680,14 @@ export function App() {
     });
     setActiveCue(cues[0]?.id ?? 1);
     addUsage(makeUsageEvent("draft", 0, "조건 기반 대본 초안 생성"));
+    recordActionResult({
+      kind: "generation",
+      title: "대본 초안 생성 결과",
+      sourceButton: "대본 초안 생성",
+      summary: `${result.provider}가 ${project.settings.outputMode} 초안을 생성`,
+      detail: `${result.bible.logline} / 대본 길이 ${result.script.length.toLocaleString()}자`,
+      targetPage: "workspace",
+    });
     setNotice(`${result.provider}가 ${project.settings.outputMode} 초안을 생성했습니다. 조건이 스토리 카드와 대본에 반영되었습니다.`);
   }
 
@@ -536,6 +698,14 @@ export function App() {
     updateProject({ cues: result.cues });
     setActiveCue(result.cues[0]?.id ?? 1);
     addUsage(makeUsageEvent("analysis", 0, "음악 큐 위치 추천"));
+    recordActionResult({
+      kind: "music",
+      title: "음악 위치 추천 결과",
+      sourceButton: "음악 위치 크게 보기",
+      summary: `${result.cues.length}개 음악 큐 추천`,
+      detail: result.cues.map((cue) => `${cue.title}: ${cue.placement}`).join("\n"),
+      targetPage: "songs",
+    });
     setNotice(`${result.provider}가 ${result.cues.length}개의 음악 위치를 추천했습니다.`);
   }
 
@@ -597,6 +767,15 @@ export function App() {
       }));
       setProviderJobs((current) => [job, ...current].slice(0, 30));
       addUsage(makeUsageEvent("music", musicGenerationCost, cue.title));
+      recordActionResult({
+        kind: "music",
+        title: "음악 생성 결과",
+        sourceButton: "음악 생성",
+        summary: `${cue.title} ${music.status === "ready" ? "재생 가능" : "작업 큐 등록"}`,
+        detail: `taskId: ${music.taskId}\nprovider: ${music.provider}\nnegative: ${rewrite.negativePrompt}`,
+        targetPage: music.status === "ready" ? "songs" : "ops",
+        openResults: music.status !== "ready",
+      });
       setNotice(
         music.status === "ready"
           ? `${rewrite.provider} -> ${music.provider} 완료. ${musicGenerationCost} credits 차감.`
@@ -652,6 +831,15 @@ export function App() {
     setProviderJobs((current) => [job, ...current].slice(0, 30));
     addUsage(makeUsageEvent("reading", readingCost, `전체 리딩 ${result.durationSeconds}s`));
     setReadingStatus(result.status === "ready" ? "ready" : "generating");
+    recordActionResult({
+      kind: "reading",
+      title: "전체 리딩 생성 결과",
+      sourceButton: "전체 리딩 생성",
+      summary: `${result.provider} ${result.status}, ${result.durationSeconds}초`,
+      detail: `taskId: ${result.taskId}. 캐릭터 ${project.bible.characters.length}명의 voiceId를 provider adapter로 전달했습니다.`,
+      targetPage: result.status === "ready" ? "workspace" : "ops",
+      openResults: result.status !== "ready",
+    });
     setNotice(
       result.status === "ready"
         ? `${result.provider}가 ${result.durationSeconds}초 샘플 리딩을 준비했습니다. ${readingCost} credits 차감.`
@@ -663,11 +851,27 @@ export function App() {
     setIsPlaying(true);
     playTone();
     window.setTimeout(() => setIsPlaying(false), 1300);
+    recordActionResult({
+      kind: "music",
+      title: "데모 재생 결과",
+      sourceButton: "재생",
+      summary: `${activeCueData?.title ?? "선택된 큐"} mock 오디오 재생`,
+      detail: "Web Audio API 기반 짧은 데모 톤을 재생했습니다.",
+      targetPage: "songs",
+    });
   }
 
   function handleRunAiSuggestion() {
     const aiSuggestions = buildAiSuggestions(project);
     updateProject({ aiSuggestions });
+    recordActionResult({
+      kind: "analysis",
+      title: "AI 제안 결과",
+      sourceButton: "AI 제안",
+      summary: `${aiSuggestions.length}개 dramaturg 제안 생성`,
+      detail: aiSuggestions.join("\n"),
+      targetPage: "workspace",
+    });
     setNotice("AI 제안 패널을 갱신했습니다. 오른쪽 아래 알림과 대본 위 제안 목록을 확인하세요.");
   }
 
@@ -679,6 +883,14 @@ export function App() {
       resolved: false,
     };
     updateProject({ comments: [comment, ...project.comments] });
+    recordActionResult({
+      kind: "collaboration",
+      title: "코멘트 추가 결과",
+      sourceButton: "코멘트",
+      summary: `${comment.target} 코멘트 추가`,
+      detail: comment.body,
+      targetPage: "workspace",
+    });
     setNotice("새 코멘트를 추가했습니다. 클릭하면 해결 상태가 바뀝니다.");
   }
 
@@ -686,12 +898,28 @@ export function App() {
     const runtimeReport = buildRuntimeReport(project);
     updateProject({ runtimeReport });
     addUsage(makeUsageEvent("analysis", 0, "러닝타임 계산"));
+    recordActionResult({
+      kind: "analysis",
+      title: "러닝타임 계산 결과",
+      sourceButton: "러닝타임 계산",
+      summary: `목표 ${project.settings.lengthMinutes}분 기준 계산 완료`,
+      detail: runtimeReport,
+      targetPage: "workspace",
+    });
     setNotice("러닝타임을 다시 계산했습니다.");
   }
 
   function handleToggleReadingMode() {
     setReadingMode((current) => !current);
     setActiveInspector("voice");
+    recordActionResult({
+      kind: "reading",
+      title: "리딩 모드 전환 결과",
+      sourceButton: "리딩 모드",
+      summary: readingMode ? "편집 모드로 전환" : "리딩 모드로 전환",
+      detail: "편집기의 readOnly 상태와 오른쪽 리딩 패널을 함께 전환했습니다.",
+      targetPage: "workspace",
+    });
     setNotice(readingMode ? "편집 모드로 돌아왔습니다." : "리딩 모드가 켜졌습니다. 캐릭터별 음성을 확인하세요.");
   }
 
@@ -711,6 +939,15 @@ export function App() {
     });
     setExportFormat(format);
     addUsage(makeUsageEvent("export", 0, `${format} export`));
+    recordActionResult({
+      kind: "export",
+      title: "내보내기 결과",
+      sourceButton: `${format.toUpperCase()} 생성`,
+      summary: `${format.toUpperCase()} 산출물 생성 실행`,
+      detail: format === "pdf" ? "브라우저 인쇄 대화상자를 호출했습니다." : "다운로드 파일 생성을 실행했습니다.",
+      targetPage: "export",
+      openResults: true,
+    });
     setNotice(`${format.toUpperCase()} 내보내기를 실행했습니다.`);
   }
 
@@ -727,7 +964,7 @@ export function App() {
     if (page === "billing") setActiveInspector("billing");
     if (page === "songs") setActiveInspector("music");
     if (page === "bible" || page === "overview") setActiveInspector("settings");
-    if (page === "ops" || page === "launch" || page === "mobile") setActiveInspector("billing");
+    if (page === "ops" || page === "launch" || page === "mobile" || page === "results") setActiveInspector("billing");
     setNotice(
       {
         workspace: "작업실로 돌아왔습니다.",
@@ -739,6 +976,7 @@ export function App() {
         ops: "상용화 콘솔에서 계정, 저장, 권리, 작업 큐를 관리합니다.",
         launch: "공개 런칭 키트에서 소개 페이지와 가격 메시지를 확인합니다.",
         mobile: "모바일 리뷰 화면에서 공유/감상 보조 경험을 확인합니다.",
+        results: "결과 센터에서 버튼 실행 결과와 관련 화면 링크를 확인합니다.",
       }[page],
     );
   }
@@ -1252,7 +1490,7 @@ export function App() {
             <h2>모바일 리뷰/감상 보조</h2>
             <p>노트북 집필을 기본으로 두고, 휴대폰에서는 공유 링크 확인, 음악 데모 감상, 코멘트 확인에 집중합니다.</p>
             <div className="page-actions">
-              <button className="primary-button" onClick={() => setShareLink(`${window.location.origin}${window.location.pathname}?project=${project.id}`)}>
+              <button className="primary-button" onClick={handleCreateMobileShare}>
                 <Link2 size={16} />
                 모바일 공유 링크 생성
               </button>
@@ -1292,6 +1530,90 @@ export function App() {
               </article>
             </div>
           </div>
+        </section>
+      );
+    }
+
+    if (activePage === "results") {
+      const resultLabels: Record<ActionResultKind, string> = {
+        generation: "생성",
+        music: "음악",
+        reading: "리딩",
+        export: "내보내기",
+        billing: "결제",
+        ops: "운영",
+        collaboration: "협업",
+        analysis: "분석",
+        system: "시스템",
+      };
+
+      return (
+        <section className="page-landing results-page">
+          <div className="page-hero">
+            <p className="eyebrow">Result Center</p>
+            <h2>결과 센터</h2>
+            <p>저장, 생성, checkout, 초대, 권리 확인, provider polling 같은 액션형 버튼의 결과를 한 곳에서 확인합니다.</p>
+            <div className="page-actions">
+              <button className="primary-button" onClick={() => openPage("workspace")}>
+                <FileText size={16} />
+                작업실로 이동
+              </button>
+              <button className="secondary-button" onClick={() => setActionResults([])}>
+                <RefreshCcw size={16} />
+                결과 로그 비우기
+              </button>
+            </div>
+          </div>
+
+          <div className="result-summary">
+            <article>
+              <strong>전체 결과</strong>
+              <b>{actionResults.length}</b>
+              <span>최근 80개까지 보관</span>
+            </article>
+            <article>
+              <strong>마지막 버튼</strong>
+              <b>{actionResults[0]?.sourceButton ?? "없음"}</b>
+              <span>{actionResults[0]?.createdAt.slice(0, 19).replace("T", " ") ?? "아직 실행 전"}</span>
+            </article>
+            <article>
+              <strong>관련 프로젝트</strong>
+              <b>{actionResults[0]?.projectTitle ?? project.title}</b>
+              <span>버튼 결과는 프로젝트 단위로 기록됩니다.</span>
+            </article>
+          </div>
+
+          {actionResults.length === 0 ? (
+            <div className="result-empty">
+              <CheckCircle2 size={20} />
+              <strong>아직 기록된 버튼 결과가 없습니다.</strong>
+              <span>저장, checkout, 초대, 권리 확인, 음악 생성 같은 버튼을 누르면 이곳에 결과가 쌓입니다.</span>
+            </div>
+          ) : (
+            <div className="result-list">
+              {actionResults.map((result) => (
+                <article className="result-card" key={result.id}>
+                  <div className="result-card-head">
+                    <span>{resultLabels[result.kind]}</span>
+                    <small>{result.createdAt.slice(0, 19).replace("T", " ")}</small>
+                  </div>
+                  <h3>{result.title}</h3>
+                  <strong>{result.summary}</strong>
+                  <p>{result.detail}</p>
+                  <div className="result-meta">
+                    <span>버튼: {result.sourceButton}</span>
+                    <span>프로젝트: {result.projectTitle}</span>
+                  </div>
+                  {result.targetPage && (
+                    <button className="secondary-button compact" onClick={() => openPage(result.targetPage as AppPage)}>
+                      <Link2 size={15} />
+                      관련 화면 열기
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       );
     }
@@ -1354,6 +1676,10 @@ export function App() {
           <button className={`project-item ${activePage === "mobile" ? "active" : ""}`} onClick={() => openPage("mobile")}>
             <Smartphone size={16} />
             <span>모바일 리뷰</span>
+          </button>
+          <button className={`project-item ${activePage === "results" ? "active" : ""}`} onClick={() => openPage("results")}>
+            <CheckCircle2 size={16} />
+            <span>결과 센터</span>
           </button>
         </section>
 

@@ -80,6 +80,30 @@ export type CheckoutSession = {
   status: "mock" | "created";
 };
 
+export type ActionResultKind =
+  | "generation"
+  | "music"
+  | "reading"
+  | "export"
+  | "billing"
+  | "ops"
+  | "collaboration"
+  | "analysis"
+  | "system";
+
+export type ActionResult = {
+  id: string;
+  kind: ActionResultKind;
+  title: string;
+  sourceButton: string;
+  summary: string;
+  detail: string;
+  projectId: string;
+  projectTitle: string;
+  targetPage?: string;
+  createdAt: string;
+};
+
 export const onboardingSteps = [
   "작품 목표 입력",
   "생성 조건 확정",
@@ -198,5 +222,13 @@ export function commercialReadiness(rights: RightsState, hasServerStorage: boole
   return {
     score: Math.max(0, 100 - missing.length * 22),
     missing,
+  };
+}
+
+export function createActionResult(input: Omit<ActionResult, "id" | "createdAt">): ActionResult {
+  return {
+    ...input,
+    id: `result-${Date.now()}-${Math.round(Math.random() * 10000)}`,
+    createdAt: new Date().toISOString(),
   };
 }
