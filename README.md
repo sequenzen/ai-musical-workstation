@@ -2,6 +2,8 @@
 
 뮤지컬 작사가/극작가를 위한 AI 워크스테이션 MVP입니다. 웹 편집기, 스토리 바이블, 음악 큐 추천, 음악 생성 mock 파이프라인, Studio 플랜용 전체 리딩 mock, 크레딧 가드, 내보내기를 포함합니다.
 
+Public MVP: https://sequenzen.github.io/ai-musical-workstation/
+
 ## Local
 
 ```bash
@@ -41,7 +43,7 @@ cp .env.example .env
 
 ## Deploy
 
-현재 저장소는 Render, Railway, Docker 배포 준비가 되어 있습니다. 이 머신에는 공개 배포 토큰과 Git remote가 없어 실제 공개 URL 생성은 보류되어 있습니다. 검증 상태는 `DEPLOYMENT_STATUS.md`에 정리되어 있습니다.
+현재 저장소는 GitHub Pages에 정적 MVP로 배포되어 있고, Render, Railway, Docker 백엔드 배포 준비도 되어 있습니다. 검증 상태는 `DEPLOYMENT_STATUS.md`에 정리되어 있습니다.
 
 ### Render
 
@@ -77,3 +79,7 @@ docker run -p 8787:8787 stagewrite-ai
 GitHub Pages는 정적 MVP 공개용입니다. 백엔드 API는 포함하지 않지만, 앱의 client mock fallback으로 대본/음악/리딩 플로우를 체험할 수 있습니다.
 
 현재 GitHub 토큰에 `workflow` scope가 없어 Actions workflow 대신 `gh-pages` 브랜치에 `dist/` 산출물을 직접 push하는 방식으로 배포합니다.
+
+Public URL:
+
+https://sequenzen.github.io/ai-musical-workstation/

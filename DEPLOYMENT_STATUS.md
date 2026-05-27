@@ -6,10 +6,18 @@
 - `npm start` serves the production React app and `/api/*` from one Express server.
 - Docker image `stagewrite-ai:local` builds successfully.
 - Docker container health check succeeds at `/api/health`.
+- GitHub Pages static MVP loads successfully.
+- Deployed click flow verified: draft generation, music cue suggestion, music generation mock, and play button activation.
 
 ## Public Deployment
 
 Public deployment target selected: GitHub Pages static MVP.
+
+Public URL:
+
+https://sequenzen.github.io/ai-musical-workstation/
+
+Status: deployed and browser-verified.
 
 Backend-capable deployment providers are still not configured because no provider tokens are available:
 
