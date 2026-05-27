@@ -1,9 +1,11 @@
 import {
   initialCues,
+  type PlanId,
   type MusicCue,
   type ProjectBible,
   type ProjectSettings,
 } from "./domain";
+import type { CheckoutSession, CostPolicy, ProviderJob, RightsState, TeamMember, WorkspaceAccount } from "./commercial";
 import { generateLocalCues, generateLocalDraft } from "./generators";
 
 type JsonRecord = Record<string, unknown>;
@@ -99,10 +101,10 @@ export function rewriteMusicPrompt(projectBible: ProjectBible, cue: MusicCue, us
     "/api/rewrite-music-prompt",
     { projectBible, cue, userPrompt },
     {
-      rewrittenPrompt: `${cue.title}. ${cue.intent} ${cue.style}. Korean contemporary musical theatre demo, emotionally specific, stage-ready, no direct imitation of referenced works.`,
+      rewrittenPrompt: `${cue.title}. ${cue.intent} ${cue.style}. ${cue.motif ? `Motif: ${cue.motif}.` : ""} Korean contemporary musical theatre demo, emotionally specific, stage-ready, no direct imitation of referenced works.`,
       lyricsPrompt: cue.lyricsPrompt ?? cue.intent,
       stylePrompt: cue.style,
-      negativePrompt: "No copyrighted melody imitation, no named-artist clone, no direct quotation from existing musicals.",
+      negativePrompt: cue.negativePrompt ?? "No copyrighted melody imitation, no named-artist clone, no direct quotation from existing musicals.",
       rightsNote: "Mock output. Confirm provider plan and commercial rights before release.",
       provider: "client-mock",
     },
@@ -150,4 +152,70 @@ export function generateReadingAsset(payload: {
     demoAudioUrl: null,
     provider: "client-mock",
   });
+}
+
+export function syncWorkspace(payload: {
+  account: WorkspaceAccount;
+  projectCount: number;
+  versionCount: number;
+}) {
+  return postJson("/api/workspace/sync", payload, {
+    syncedAt: new Date().toISOString(),
+    storageMode: payload.account.storageMode,
+    provider: "client-mock-storage",
+  });
+}
+
+export function createCheckoutSession(planId: PlanId) {
+  return postJson<CheckoutSession>(
+    "/api/checkout/create-session",
+    { planId },
+    {
+      sessionId: `checkout-mock-${Date.now()}`,
+      planId,
+      url: `https://billing.stagewrite.local/checkout/${planId}`,
+      status: "mock",
+    },
+  );
+}
+
+export function acknowledgeRights(payload: { rights: RightsState; projectTitle: string }) {
+  return postJson("/api/rights/acknowledge", payload, {
+    acknowledgedAt: new Date().toISOString(),
+    rightsId: `rights-mock-${Date.now()}`,
+    provider: "client-mock-rights",
+  });
+}
+
+export function createTeamInvite(member: TeamMember) {
+  return postJson("/api/team/invite", member, {
+    inviteId: `invite-mock-${Date.now()}`,
+    shareLink: `https://sequenzen.github.io/ai-musical-workstation/?invite=${encodeURIComponent(member.email)}`,
+    provider: "client-mock-team",
+  });
+}
+
+export function previewUsageLimit(payload: {
+  policy: CostPolicy;
+  currentSpend: number;
+  requestedCost: number;
+}) {
+  return postJson("/api/usage/preview", payload, {
+    allowed: !payload.policy.hardStopEnabled || payload.currentSpend + payload.requestedCost <= payload.policy.monthlyCreditCap,
+    remainingAfter: Math.max(0, payload.policy.monthlyCreditCap - payload.currentSpend - payload.requestedCost),
+    provider: "client-mock-usage",
+  });
+}
+
+export function getProviderJobStatus(job: ProviderJob) {
+  const nextStatus = job.retryCount > 0 || job.status === "processing" ? "ready" : "processing";
+  return postJson<ProviderJob>(
+    "/api/provider-jobs/status",
+    { job },
+    {
+      ...job,
+      status: nextStatus,
+      updatedAt: new Date().toISOString(),
+    },
+  );
 }

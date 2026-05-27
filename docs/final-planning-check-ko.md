@@ -6,7 +6,7 @@
 
 사용자는 `요청 입력 -> 생성 조건 설정 -> 스토리 바이블/대본 생성 -> 음악 위치 추천 -> 음악 생성 mock -> 전체 리딩 mock -> 내보내기 -> 결제/크레딧 확인`까지 한 흐름으로 체험할 수 있다. 좌측 주요 페이지에는 모두 실제 화면이 있고, 문서화된 버튼은 빈 상태로 남아 있지 않다.
 
-다만 상용 제품으로 판매하려면 아래 항목은 반드시 별도 기획/개발 범위로 잡아야 한다. 현재 공개 배포는 API 키 없는 정적 mock 제품이므로, 이 항목들은 MVP의 누락이라기보다 다음 단계의 필수 제품 범위다.
+상용 제품으로 판매하려면 아래 항목은 실제 외부 서비스, DB, 인증과 연결되어야 한다. 현재 구현은 API 키 없는 정적 mock 제품에서도 전체 UX를 검증할 수 있도록 `화면 + 상태 모델 + 백엔드 계약 + fallback`까지 만든 상태다.
 
 ## MVP에서 닫힌 범위
 
@@ -24,6 +24,23 @@
 | 내보내기 | Markdown, Fountain, Manifest, PDF 인쇄 경로 구현 |
 | 버튼/페이지 | 작업실, 기획 보드, 스토리 바이블, 넘버 보관함, 내보내기 센터, 결제/크레딧 모두 화면 존재 |
 | 배포 | GitHub Pages 정적 MVP 배포 및 브라우저 검증 완료 |
+
+## 상용화 기획 구현 현황
+
+| 항목 | 구현 내용 | 실제 운영 전 남은 일 |
+| --- | --- | --- |
+| 계정/워크스페이스 | 상용화 콘솔에서 workspace 이름, owner email, local/server sync 모드 관리 | 인증, 사용자 DB |
+| 서버 저장소/버전 히스토리 | 버전 스냅샷 저장/복원, workspace sync mock API | 영구 DB, 충돌 해결 |
+| 실제 결제 checkout | 플랜별 checkout session mock API와 상태 표시 | Stripe secret, checkout redirect, webhook 검증 |
+| provider 작업 상태 추적 | 음악/리딩 작업 큐, polling, retry, ready 반영 | provider callback, job DB, 실패 환불 |
+| 권리/약관/상업 사용 고지 | 권리 체크리스트, 상업 사용 기록, rights ledger mock API | 약관 문안, 전자 동의 로그 |
+| 비용 한도/남용 방지 | 월 크레딧 한도, 1회 요청 한도, hard stop, usage preview API | 계정별 rate limit, 서버 enforcement |
+| 온보딩/설정 마법사 | 6단계 온보딩 체크리스트 | 실제 튜토리얼 모달/샘플 프로젝트 연결 |
+| 팀 협업/댓글 권한 | 팀 멤버 목록, 초대 링크 mock, viewer 권한 컨셉 | 계정 초대, 권한별 접근 제어 |
+| 대본 전문 포맷 | K-Stage export, Reading Packet export 추가 | Docx/PDF 템플릿 품질 개선 |
+| 캐릭터/넘버별 프롬프트 편집 | 음악 큐별 가사 프롬프트, 모티프, negative prompt 편집 | 곡별 버전 비교 |
+| 공개 마케팅 페이지 | 런칭 키트 페이지와 가격/권리 메시지 | 별도 public route, SEO |
+| 모바일 보조 경험 | 모바일 리뷰 화면, 공유 링크, 데모 듣기/코멘트 버튼 | PWA, 모바일 전용 플레이어 |
 
 ## 상용화 전 필수 기획
 
@@ -53,4 +70,4 @@
 
 ## 다음 단계 결론
 
-다음 개발 라운드의 목표는 기능 추가보다 `상용화 기반`이어야 한다. 순서는 `계정/서버 저장 -> Stripe checkout/webhook -> provider job polling -> 권리/약관 고지 -> 버전 히스토리`가 가장 안전하다.
+다음 개발 라운드의 목표는 mock을 실제 서비스로 교체하는 것이다. 순서는 `인증/DB -> Stripe checkout/webhook -> provider job callback/polling -> 권리/약관 고지 로그 -> 팀 권한`이 가장 안전하다.

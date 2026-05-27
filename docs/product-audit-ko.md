@@ -12,6 +12,9 @@
 | 넘버 보관함 | 음악 큐 목록, 극적 기능, 가사 프롬프트, 큐 선택 | 완료 |
 | 내보내기 센터 | Markdown, Fountain, Manifest, PDF 출력 진입 | 완료 |
 | 결제/크레딧 | 플랜, 음악/리딩 크레딧, Stripe lookup key | 완료 |
+| 상용화 콘솔 | 계정, 서버 동기화 mock, 버전 히스토리, 권리 체크, 비용 한도, 팀 초대, provider 작업 큐 | 완료 |
+| 런칭 키트 | 공개 소개 메시지, 가격 카드, checkout mock 진입 | 완료 |
+| 모바일 리뷰 | 모바일 공유 링크, 감상/코멘트 보조 화면 | 완료 |
 
 ## 버튼 감사
 
@@ -24,6 +27,9 @@
 | 넘버 보관함 | 넘버 관리 랜딩 페이지로 이동 | `openPage("songs")` |
 | 내보내기 센터 | 포맷별 export 랜딩 페이지로 이동 | `openPage("export")` |
 | 결제/크레딧 | 결제 랜딩 페이지와 결제 패널 열기 | `openPage("billing")` |
+| 상용화 콘솔 | 운영/상용화 관리 페이지로 이동 | `openPage("ops")` |
+| 런칭 키트 | 공개 소개/가격 페이지로 이동 | `openPage("launch")` |
+| 모바일 리뷰 | 모바일 보조 화면으로 이동 | `openPage("mobile")` |
 | 프로젝트 항목 | 해당 프로젝트 선택 후 기획 보드로 이동 | 프로젝트 선택 핸들러 |
 | 사이드바 접기 | 좌측 프로젝트 패널 접기/펴기 | `setIsSidebarCollapsed` |
 | 프로젝트 복사 | 현재 프로젝트 복제 | `handleDuplicateProject` |
@@ -50,13 +56,21 @@
 | 전체 리딩 생성 | Studio 플랜에서 mock/provider 리딩 생성 | `handleGenerateReading` |
 | 코멘트 항목 | 해결/미해결 토글 | `toggleComment` |
 | 모바일 전송 | 대본 생성 | `handleGenerateDraft` |
+| 서버 동기화 mock | workspace sync API 호출과 버전 저장 | `handleSyncWorkspace` |
+| 버전 저장 | 현재 프로젝트 스냅샷 저장 | `handleCreateVersion` |
+| 버전 복원 | 저장된 프로젝트 스냅샷 복원 | `handleRestoreVersion` |
+| 권리 확인 기록 | 권리 체크리스트 완료 후 기록 | `handleAcknowledgeRights` |
+| 팀 초대 | 협업자 초대 링크 생성 | `handleInviteMember` |
+| provider polling | 음악/리딩 작업 상태 갱신 | `handlePollJob` |
+| provider retry | 실패/대기 작업 재시도 | `handleRetryJob` |
+| checkout mock | Stripe 연결 가능한 checkout 세션 생성 | `handleCheckout` |
 
 ## 랜딩 페이지 판단
 
-페이지가 필요한 버튼은 좌측 네비게이션과 결제 탭처럼 사용자가 별도 업무 맥락으로 이동한다고 기대하는 버튼이다. 현재 `작업실`, `기획 보드`, `스토리 바이블`, `넘버 보관함`, `내보내기 센터`, `결제/크레딧`은 모두 별도 화면을 가진다.
+페이지가 필요한 버튼은 좌측 네비게이션과 결제 탭처럼 사용자가 별도 업무 맥락으로 이동한다고 기대하는 버튼이다. 현재 `작업실`, `기획 보드`, `스토리 바이블`, `넘버 보관함`, `내보내기 센터`, `결제/크레딧`, `상용화 콘솔`, `런칭 키트`, `모바일 리뷰`는 모두 별도 화면을 가진다.
 
 액션 버튼은 랜딩 페이지가 아니라 현재 문맥에서 즉시 결과를 만들어야 한다. `AI 제안`, `코멘트`, `러닝타임 계산`, `음악 생성`, `재생`, `저장`, `내보내기`는 알림/패널/파일 출력으로 피드백을 준다.
 
 ## 남은 제품 범위
 
-현재 공개 배포는 API 키 없이도 전체 흐름을 확인하는 정적 mock 제품이다. 실제 상용화를 위해서는 OpenAI, 음악 생성 provider, 음성 provider, Stripe checkout, 사용자 계정/팀 협업, 서버 저장소, 약관/권리 고지가 필요하다. 다만 프론트 버튼과 화면 흐름은 빈 상태 없이 동작하도록 연결되어 있다.
+현재 공개 배포는 API 키 없이도 전체 흐름을 확인하는 정적 mock 제품이다. OpenAI, 음악 생성 provider, 음성 provider, Stripe checkout, 사용자 계정/팀 협업, 서버 저장소, 약관/권리 고지는 mock UI와 백엔드 계약까지 구현되어 있다. 실제 과금/상용 운영에는 provider 키, Stripe 웹훅 검증, DB, 인증이 추가로 필요하다.

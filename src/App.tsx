@@ -1,9 +1,12 @@
 import {
   AlertCircle,
   AudioLines,
+  Ban,
   BookOpenText,
   Bot,
+  BriefcaseBusiness,
   Check,
+  CheckCircle2,
   ChevronDown,
   CircleDollarSign,
   Copy,
@@ -12,7 +15,10 @@ import {
   Download,
   FileText,
   Gauge,
+  Globe2,
+  History,
   Library,
+  Link2,
   Lock,
   MessageSquareText,
   Mic2,
@@ -25,8 +31,13 @@ import {
   Save,
   Send,
   Settings2,
+  ShieldAlert,
+  ShieldCheck,
   Sparkles,
+  Smartphone,
   Timer,
+  UserPlus,
+  Users,
   Wand2,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -35,9 +46,34 @@ import {
   generateDraft,
   generateMusicAsset,
   generateReadingAsset,
+  acknowledgeRights,
+  createCheckoutSession,
+  createTeamInvite,
+  getProviderJobStatus,
+  previewUsageLimit,
   rewriteMusicPrompt,
   suggestMusicCues,
+  syncWorkspace,
 } from "./api";
+import {
+  commercialReadiness,
+  createProviderJob,
+  createWorkspaceVersion,
+  defaultCostPolicy,
+  defaultOnboardingState,
+  defaultRightsState,
+  defaultTeamMembers,
+  defaultWorkspaceAccount,
+  onboardingSteps,
+  rightsProgress,
+  type CostPolicy,
+  type ProviderJob,
+  type RightsChecklistKey,
+  type RightsState,
+  type TeamMember,
+  type WorkspaceAccount,
+  type WorkspaceVersion,
+} from "./commercial";
 import {
   estimateReadingCost,
   initialProject,
@@ -58,10 +94,17 @@ const projectsStorageKey = "stagewrite.projects.v3";
 const activeProjectStorageKey = "stagewrite.activeProject.v3";
 const usageStorageKey = "stagewrite.usage.v2";
 const planStorageKey = "stagewrite.plan.v2";
+const workspaceStorageKey = "stagewrite.workspace.v1";
+const teamStorageKey = "stagewrite.team.v1";
+const versionsStorageKey = "stagewrite.versions.v1";
+const jobsStorageKey = "stagewrite.providerJobs.v1";
+const rightsStorageKey = "stagewrite.rights.v1";
+const costPolicyStorageKey = "stagewrite.costPolicy.v1";
+const onboardingStorageKey = "stagewrite.onboarding.v1";
 
 const settingSteps = ["기본", "세계", "인물", "구조", "음악", "제작"];
 
-type AppPage = "workspace" | "overview" | "bible" | "songs" | "export" | "billing";
+type AppPage = "workspace" | "overview" | "bible" | "songs" | "export" | "billing" | "ops" | "launch" | "mobile";
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
@@ -155,6 +198,18 @@ export function App() {
   const [activeInspector, setActiveInspector] = useState<"settings" | "music" | "voice" | "billing">("settings");
   const [activePage, setActivePage] = useState<AppPage>("workspace");
   const [readingMode, setReadingMode] = useState(false);
+  const [workspaceAccount, setWorkspaceAccount] = useState<WorkspaceAccount>(() =>
+    loadJson(workspaceStorageKey, defaultWorkspaceAccount),
+  );
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => loadJson(teamStorageKey, defaultTeamMembers));
+  const [versions, setVersions] = useState<WorkspaceVersion[]>(() => loadJson(versionsStorageKey, []));
+  const [providerJobs, setProviderJobs] = useState<ProviderJob[]>(() => loadJson(jobsStorageKey, []));
+  const [rightsState, setRightsState] = useState<RightsState>(() => loadJson(rightsStorageKey, defaultRightsState));
+  const [costPolicy, setCostPolicy] = useState<CostPolicy>(() => loadJson(costPolicyStorageKey, defaultCostPolicy));
+  const [onboardingState, setOnboardingState] = useState(() => loadJson(onboardingStorageKey, defaultOnboardingState));
+  const [inviteEmail, setInviteEmail] = useState("director@example.com");
+  const [shareLink, setShareLink] = useState("https://sequenzen.github.io/ai-musical-workstation/");
+  const [checkoutStatus, setCheckoutStatus] = useState("아직 checkout 세션을 만들지 않았습니다.");
 
   const project = useMemo(
     () => projects.find((item) => item.id === activeProjectId) ?? projects[0] ?? initialProject,
@@ -176,6 +231,16 @@ export function App() {
   const readingRemaining = Math.max(0, plan.readingCredits - readingSpent);
   const readingCost = estimateReadingCost(project.script);
   const isStudio = planId === "studio";
+  const totalCreditSpent = usageLedger.reduce((sum, event) => sum + event.amount, 0);
+  const monthlyCreditRemaining = Math.max(0, costPolicy.monthlyCreditCap - totalCreditSpent);
+  const rightsCompletion = rightsProgress(rightsState);
+  const hasCheckoutSession = checkoutStatus.includes("checkout-mock") || checkoutStatus.includes("Stripe");
+  const readiness = commercialReadiness(
+    rightsState,
+    workspaceAccount.storageMode === "server-sync" || versions.length > 0,
+    hasCheckoutSession,
+  );
+  const activeJobs = providerJobs.filter((job) => job.status === "queued" || job.status === "processing");
 
   useEffect(() => {
     localStorage.setItem(projectsStorageKey, JSON.stringify(projects));
@@ -192,6 +257,34 @@ export function App() {
   useEffect(() => {
     localStorage.setItem(planStorageKey, JSON.stringify(planId));
   }, [planId]);
+
+  useEffect(() => {
+    localStorage.setItem(workspaceStorageKey, JSON.stringify(workspaceAccount));
+  }, [workspaceAccount]);
+
+  useEffect(() => {
+    localStorage.setItem(teamStorageKey, JSON.stringify(teamMembers));
+  }, [teamMembers]);
+
+  useEffect(() => {
+    localStorage.setItem(versionsStorageKey, JSON.stringify(versions));
+  }, [versions]);
+
+  useEffect(() => {
+    localStorage.setItem(jobsStorageKey, JSON.stringify(providerJobs));
+  }, [providerJobs]);
+
+  useEffect(() => {
+    localStorage.setItem(rightsStorageKey, JSON.stringify(rightsState));
+  }, [rightsState]);
+
+  useEffect(() => {
+    localStorage.setItem(costPolicyStorageKey, JSON.stringify(costPolicy));
+  }, [costPolicy]);
+
+  useEffect(() => {
+    localStorage.setItem(onboardingStorageKey, JSON.stringify(onboardingState));
+  }, [onboardingState]);
 
   function addUsage(event: UsageEvent) {
     setUsageLedger((current) => [event, ...current].slice(0, 40));
@@ -213,6 +306,145 @@ export function App() {
         ...next,
       },
     }));
+  }
+
+  function updateCue(cueId: number, next: Partial<MusicCue>) {
+    updateCurrentProject((current) => ({
+      ...current,
+      cues: current.cues.map((cue) => (cue.id === cueId ? { ...cue, ...next } : cue)),
+    }));
+  }
+
+  async function checkUsageAllowance(requestedCost: number) {
+    const preview = await previewUsageLimit({
+      policy: costPolicy,
+      currentSpend: totalCreditSpent,
+      requestedCost,
+    });
+    if (!preview.allowed) {
+      setNotice(`월 크레딧 한도를 초과합니다. 남은 한도 ${monthlyCreditRemaining} / 요청 ${requestedCost}`);
+      return false;
+    }
+    return true;
+  }
+
+  async function handleSyncWorkspace() {
+    const result = await syncWorkspace({
+      account: workspaceAccount,
+      projectCount: projects.length,
+      versionCount: versions.length,
+    });
+    const version = createWorkspaceVersion(project, workspaceAccount.ownerName, "서버 동기화 스냅샷");
+    setVersions((current) => [version, ...current].slice(0, 12));
+    setWorkspaceAccount((current) => ({ ...current, storageMode: "server-sync" }));
+    setNotice(`${result.provider}에 ${projects.length}개 프로젝트를 동기화했습니다.`);
+  }
+
+  function handleCreateVersion(label = "작업 스냅샷") {
+    const version = createWorkspaceVersion(project, workspaceAccount.ownerName, label);
+    setVersions((current) => [version, ...current].slice(0, 12));
+    setNotice(`${version.label}을 저장했습니다. 버전 히스토리에서 복원할 수 있습니다.`);
+  }
+
+  function handleRestoreVersion(versionId: string) {
+    const version = versions.find((item) => item.id === versionId);
+    if (!version) return;
+    setProjects((current) => {
+      const exists = current.some((item) => item.id === version.snapshot.id);
+      return exists
+        ? current.map((item) => (item.id === version.snapshot.id ? version.snapshot : item))
+        : [version.snapshot, ...current];
+    });
+    setActiveProjectId(version.snapshot.id);
+    setActivePage("workspace");
+    setNotice(`${version.label} 버전을 복원했습니다.`);
+  }
+
+  async function handleCheckout(planToBuy: PlanId) {
+    const session = await createCheckoutSession(planToBuy);
+    setPlanId(planToBuy);
+    setCheckoutStatus(`${session.status === "mock" ? "mock checkout" : "Stripe checkout"}: ${session.sessionId}`);
+    setNotice(`${plans[planToBuy].name} checkout 세션을 만들었습니다. 실제 결제 키가 있으면 ${session.url}로 연결됩니다.`);
+  }
+
+  function toggleRightsChecklist(key: RightsChecklistKey) {
+    setRightsState((current) => ({
+      ...current,
+      accepted: false,
+      checklist: {
+        ...current.checklist,
+        [key]: !current.checklist[key],
+      },
+    }));
+  }
+
+  async function handleAcknowledgeRights() {
+    const complete = rightsProgress(rightsState) === 100;
+    if (!complete) {
+      setNotice("상업 사용 전에 권리 체크리스트를 모두 확인해야 합니다.");
+      return;
+    }
+    const result = await acknowledgeRights({ rights: rightsState, projectTitle: project.title });
+    setRightsState((current) => ({
+      ...current,
+      accepted: true,
+      acceptedAt: result.acknowledgedAt,
+    }));
+    setNotice(`권리 확인 기록을 저장했습니다. ID: ${result.rightsId}`);
+  }
+
+  async function handleInviteMember() {
+    const member: TeamMember = {
+      id: `member-${Date.now()}`,
+      name: inviteEmail.split("@")[0] || "협업자",
+      email: inviteEmail,
+      role: "viewer",
+      status: "invited",
+    };
+    const result = await createTeamInvite(member);
+    setTeamMembers((current) => [member, ...current]);
+    setShareLink(result.shareLink);
+    setNotice(`${member.email} 초대 링크를 만들었습니다.`);
+  }
+
+  function handleCompleteOnboarding(step: string, index: number) {
+    setOnboardingState((current) => ({
+      completedSteps: current.completedSteps.includes(step)
+        ? current.completedSteps
+        : [...current.completedSteps, step],
+      currentStep: Math.min(onboardingSteps.length - 1, index + 1),
+    }));
+    setNotice(`${step} 단계를 완료 처리했습니다.`);
+  }
+
+  async function handlePollJob(jobId: string) {
+    const job = providerJobs.find((item) => item.id === jobId);
+    if (!job) return;
+    const next = await getProviderJobStatus(job);
+    setProviderJobs((current) => current.map((item) => (item.id === jobId ? next : item)));
+    if (next.status === "ready" && next.type === "music" && next.cueId) {
+      updateCue(next.cueId, { status: "ready" });
+    }
+    if (next.status === "ready" && next.type === "reading") {
+      setReadingStatus("ready");
+    }
+    setNotice(`${next.title} 작업 상태: ${next.status}`);
+  }
+
+  function handleRetryJob(jobId: string) {
+    setProviderJobs((current) =>
+      current.map((job) =>
+        job.id === jobId
+          ? {
+              ...job,
+              status: "queued",
+              retryCount: job.retryCount + 1,
+              updatedAt: new Date().toISOString(),
+            }
+          : job,
+      ),
+    );
+    setNotice("provider 작업을 재시도 대기열로 보냈습니다.");
   }
 
   function handleCreateProject() {
@@ -308,6 +540,13 @@ export function App() {
   }
 
   async function handleGenerateMusic(cue: MusicCue) {
+    if (musicGenerationCost > costPolicy.perRequestMusicCap) {
+      setNotice(`요청 비용이 1회 음악 한도 ${costPolicy.perRequestMusicCap} credits를 초과합니다.`);
+      return;
+    }
+
+    if (!(await checkUsageAllowance(musicGenerationCost))) return;
+
     if (musicRemaining < musicGenerationCost) {
       setNotice(`음악 크레딧이 부족합니다. ${plan.name} 잔여 ${musicRemaining} / 필요 ${musicGenerationCost}`);
       return;
@@ -328,6 +567,17 @@ export function App() {
         style: rewrite.stylePrompt,
         duration: cue.duration,
       });
+      const finalStatus = music.status === "ready" ? "ready" : "generating";
+      const job = createProviderJob({
+        type: "music",
+        title: cue.title,
+        projectId: project.id,
+        cueId: cue.id,
+        providerTaskId: music.taskId,
+        provider: music.provider,
+        status: music.status === "ready" ? "ready" : "queued",
+        cost: musicGenerationCost,
+      });
 
       updateCurrentProject((current) => ({
         ...current,
@@ -335,17 +585,23 @@ export function App() {
           item.id === cue.id
             ? {
                 ...item,
-                status: "ready",
+                status: finalStatus,
                 rewrittenPrompt: rewrite.rewrittenPrompt,
                 lyricsPrompt: rewrite.lyricsPrompt,
+                negativePrompt: rewrite.negativePrompt,
                 taskId: music.taskId,
                 demoAudioUrl: music.demoAudioUrl,
               }
             : item,
         ),
       }));
+      setProviderJobs((current) => [job, ...current].slice(0, 30));
       addUsage(makeUsageEvent("music", musicGenerationCost, cue.title));
-      setNotice(`${rewrite.provider} -> ${music.provider} 완료. ${musicGenerationCost} credits 차감.`);
+      setNotice(
+        music.status === "ready"
+          ? `${rewrite.provider} -> ${music.provider} 완료. ${musicGenerationCost} credits 차감.`
+          : `${music.provider} 작업을 큐에 등록했습니다. 작업 콘솔에서 polling할 수 있습니다.`,
+      );
     } catch {
       updateCurrentProject((current) => ({
         ...current,
@@ -362,6 +618,13 @@ export function App() {
       return;
     }
 
+    if (readingCost > costPolicy.perRequestReadingCap) {
+      setNotice(`요청 비용이 1회 리딩 한도 ${costPolicy.perRequestReadingCap} credits를 초과합니다.`);
+      return;
+    }
+
+    if (!(await checkUsageAllowance(readingCost))) return;
+
     if (readingRemaining < readingCost) {
       setNotice(`리딩 크레딧이 부족합니다. 잔여 ${readingRemaining} / 필요 ${readingCost}`);
       return;
@@ -377,9 +640,23 @@ export function App() {
         voiceId: character.voiceId,
       })),
     });
+    const job = createProviderJob({
+      type: "reading",
+      title: `${project.title} 전체 리딩`,
+      projectId: project.id,
+      providerTaskId: result.taskId,
+      provider: result.provider,
+      status: result.status === "ready" ? "ready" : "queued",
+      cost: readingCost,
+    });
+    setProviderJobs((current) => [job, ...current].slice(0, 30));
     addUsage(makeUsageEvent("reading", readingCost, `전체 리딩 ${result.durationSeconds}s`));
-    setReadingStatus("ready");
-    setNotice(`${result.provider}가 ${result.durationSeconds}초 샘플 리딩을 준비했습니다. ${readingCost} credits 차감.`);
+    setReadingStatus(result.status === "ready" ? "ready" : "generating");
+    setNotice(
+      result.status === "ready"
+        ? `${result.provider}가 ${result.durationSeconds}초 샘플 리딩을 준비했습니다. ${readingCost} credits 차감.`
+        : `${result.provider} 리딩 작업을 큐에 등록했습니다. 작업 콘솔에서 polling할 수 있습니다.`,
+    );
   }
 
   function handlePlayCue() {
@@ -450,6 +727,7 @@ export function App() {
     if (page === "billing") setActiveInspector("billing");
     if (page === "songs") setActiveInspector("music");
     if (page === "bible" || page === "overview") setActiveInspector("settings");
+    if (page === "ops" || page === "launch" || page === "mobile") setActiveInspector("billing");
     setNotice(
       {
         workspace: "작업실로 돌아왔습니다.",
@@ -458,6 +736,9 @@ export function App() {
         songs: "넘버 보관함에서 음악 큐와 가사 프롬프트를 관리합니다.",
         export: "내보내기 센터에서 포맷별 산출물을 만들 수 있습니다.",
         billing: "결제/크레딧 페이지에서 플랜과 사용량을 확인합니다.",
+        ops: "상용화 콘솔에서 계정, 저장, 권리, 작업 큐를 관리합니다.",
+        launch: "공개 런칭 키트에서 소개 페이지와 가격 메시지를 확인합니다.",
+        mobile: "모바일 리뷰 화면에서 공유/감상 보조 경험을 확인합니다.",
       }[page],
     );
   }
@@ -609,9 +890,9 @@ export function App() {
             <p>대본, 스토리 바이블, 음악 큐, 사용량 기록을 목적에 맞는 포맷으로 내보냅니다.</p>
           </div>
           <div className="export-options">
-            {(["markdown", "fountain", "manifest", "pdf"] as ExportFormat[]).map((format) => (
+            {(["markdown", "fountain", "manifest", "pdf", "kstage", "reading-packet"] as ExportFormat[]).map((format) => (
               <article key={format}>
-                <strong>{format.toUpperCase()}</strong>
+                <strong>{format === "reading-packet" ? "READING PACKET" : format.toUpperCase()}</strong>
                 <span>
                   {
                     {
@@ -619,12 +900,14 @@ export function App() {
                       fountain: "스크립트 툴 호환 포맷",
                       manifest: "개발/백업용 JSON 패키지",
                       pdf: "인쇄/리딩용 페이지",
+                      kstage: "한국 공연 개발용 패킷",
+                      "reading-packet": "배우/연출 리딩용 패킷",
                     }[format]
                   }
                 </span>
                 <button className="primary-button" onClick={() => handleExportAs(format)}>
                   <Download size={16} />
-                  {format.toUpperCase()} 생성
+                  {format === "reading-packet" ? "READING PACKET" : format.toUpperCase()} 생성
                 </button>
               </article>
             ))}
@@ -648,9 +931,9 @@ export function App() {
                 <b>{plans[id].price}</b>
                 <span>음악 {plans[id].musicCredits} cr / 리딩 {plans[id].readingCredits} cr</span>
                 <small>{plans[id].features.join(", ")}</small>
-                <button className="secondary-button" onClick={() => setPlanId(id)}>
+                <button className="secondary-button" onClick={() => handleCheckout(id)}>
                   <CreditCard size={16} />
-                  {plans[id].name} 선택
+                  {plans[id].name} checkout
                 </button>
               </article>
             ))}
@@ -668,6 +951,346 @@ export function App() {
               <strong>Stripe key</strong>
               <span>{plan.stripePriceLookupKey}</span>
             </article>
+          </div>
+        </section>
+      );
+    }
+
+    if (activePage === "ops") {
+      const rightsLabels: Record<RightsChecklistKey, string> = {
+        referenceOnly: "레퍼런스는 구조 분석용으로만 사용",
+        providerTerms: "음악/음성 provider 상업 사용 조건 확인",
+        commercialPlan: "상업 배포 가능한 유료 플랜 사용",
+        noVoiceClone: "실존 배우/가수 음성 무단 복제 금지",
+        humanReview: "공개 전 사람이 최종 검수",
+      };
+
+      return (
+        <section className="page-landing ops-page">
+          <div className="page-hero">
+            <p className="eyebrow">Commercial Console</p>
+            <h2>상용화 콘솔</h2>
+            <p>계정, 서버 저장, 결제, 권리, 비용 한도, 팀 협업, provider 작업 상태를 한 곳에서 관리합니다.</p>
+            <div className="page-actions">
+              <button className="primary-button" onClick={handleSyncWorkspace}>
+                <Database size={16} />
+                서버 동기화 mock
+              </button>
+              <button className="secondary-button" onClick={() => handleCreateVersion("상용화 점검 스냅샷")}>
+                <History size={16} />
+                버전 저장
+              </button>
+              <button className="secondary-button" onClick={handleAcknowledgeRights}>
+                <ShieldCheck size={16} />
+                권리 확인 기록
+              </button>
+            </div>
+          </div>
+
+          <div className="ops-summary">
+            <article>
+              <strong>상용 준비도</strong>
+              <b>{readiness.score}%</b>
+              <span>{readiness.missing.length ? `남은 항목: ${readiness.missing.join(", ")}` : "상용화 기본 체크 완료"}</span>
+            </article>
+            <article>
+              <strong>월 한도</strong>
+              <b>{monthlyCreditRemaining} cr</b>
+              <span>
+                사용 {totalCreditSpent} / 한도 {costPolicy.monthlyCreditCap}
+              </span>
+            </article>
+            <article>
+              <strong>작업 큐</strong>
+              <b>{activeJobs.length}</b>
+              <span>queued/processing 상태</span>
+            </article>
+            <article>
+              <strong>권리 체크</strong>
+              <b>{rightsCompletion}%</b>
+              <span>{rightsState.accepted ? `확인 완료 ${rightsState.acceptedAt?.slice(0, 10)}` : "확인 전"}</span>
+            </article>
+          </div>
+
+          <div className="ops-grid">
+            <article className="ops-panel">
+              <div className="panel-heading">
+                <BriefcaseBusiness size={17} />
+                <strong>계정/워크스페이스</strong>
+              </div>
+              <label>
+                워크스페이스
+                <input
+                  value={workspaceAccount.workspaceName}
+                  onChange={(event) => setWorkspaceAccount((current) => ({ ...current, workspaceName: event.target.value }))}
+                />
+              </label>
+              <label>
+                오너 이메일
+                <input
+                  value={workspaceAccount.ownerEmail}
+                  onChange={(event) => setWorkspaceAccount((current) => ({ ...current, ownerEmail: event.target.value }))}
+                />
+              </label>
+              <div className="segmented-control compact">
+                {(["local-first", "server-sync"] as const).map((mode) => (
+                  <button
+                    className={workspaceAccount.storageMode === mode ? "active" : ""}
+                    key={mode}
+                    onClick={() => setWorkspaceAccount((current) => ({ ...current, storageMode: mode }))}
+                  >
+                    {mode === "local-first" ? "로컬 우선" : "서버 동기화"}
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className="ops-panel">
+              <div className="panel-heading">
+                <Users size={17} />
+                <strong>팀 협업/권한</strong>
+              </div>
+              <div className="invite-row">
+                <input value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} aria-label="초대 이메일" />
+                <button className="secondary-button compact" onClick={handleInviteMember}>
+                  <UserPlus size={15} />
+                  초대
+                </button>
+              </div>
+              <div className="team-list">
+                {teamMembers.slice(0, 5).map((member) => (
+                  <div key={member.id}>
+                    <span>{member.email}</span>
+                    <strong>
+                      {member.role} / {member.status}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+              <small>{shareLink}</small>
+            </article>
+
+            <article className="ops-panel">
+              <div className="panel-heading">
+                <History size={17} />
+                <strong>버전 히스토리</strong>
+              </div>
+              <div className="version-list">
+                {versions.length === 0 && <span>아직 저장된 버전이 없습니다.</span>}
+                {versions.slice(0, 4).map((version) => (
+                  <button key={version.id} onClick={() => handleRestoreVersion(version.id)}>
+                    <strong>{version.label}</strong>
+                    <span>
+                      {version.projectTitle} / {version.createdAt.slice(0, 10)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className="ops-panel">
+              <div className="panel-heading">
+                <ShieldAlert size={17} />
+                <strong>권리/상업 사용</strong>
+              </div>
+              <div className="rights-checklist">
+                {(Object.keys(rightsState.checklist) as RightsChecklistKey[]).map((key) => (
+                  <button className={rightsState.checklist[key] ? "checked" : ""} key={key} onClick={() => toggleRightsChecklist(key)}>
+                    {rightsState.checklist[key] ? <CheckCircle2 size={15} /> : <Ban size={15} />}
+                    {rightsLabels[key]}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={rightsState.note}
+                onChange={(event) => setRightsState((current) => ({ ...current, note: event.target.value }))}
+                aria-label="권리 메모"
+              />
+            </article>
+
+            <article className="ops-panel">
+              <div className="panel-heading">
+                <Gauge size={17} />
+                <strong>비용 한도/남용 방지</strong>
+              </div>
+              <label>
+                월 크레딧 한도
+                <input
+                  type="number"
+                  value={costPolicy.monthlyCreditCap}
+                  onChange={(event) => setCostPolicy((current) => ({ ...current, monthlyCreditCap: Number(event.target.value) }))}
+                />
+              </label>
+              <label>
+                시간당 요청 제한
+                <input
+                  type="number"
+                  value={costPolicy.rateLimitPerHour}
+                  onChange={(event) => setCostPolicy((current) => ({ ...current, rateLimitPerHour: Number(event.target.value) }))}
+                />
+              </label>
+              <button
+                className={costPolicy.hardStopEnabled ? "primary-button" : "secondary-button"}
+                onClick={() => setCostPolicy((current) => ({ ...current, hardStopEnabled: !current.hardStopEnabled }))}
+              >
+                <Lock size={16} />
+                {costPolicy.hardStopEnabled ? "초과 사용 차단 중" : "초과 사용 허용"}
+              </button>
+            </article>
+
+            <article className="ops-panel">
+              <div className="panel-heading">
+                <Sparkles size={17} />
+                <strong>온보딩 마법사</strong>
+              </div>
+              <div className="onboarding-list">
+                {onboardingSteps.map((step, index) => (
+                  <button
+                    className={onboardingState.completedSteps.includes(step) ? "done" : ""}
+                    key={step}
+                    onClick={() => handleCompleteOnboarding(step, index)}
+                  >
+                    <span>{index + 1}</span>
+                    {step}
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className="ops-panel wide">
+              <div className="panel-heading">
+                <Database size={17} />
+                <strong>Provider 작업 상태</strong>
+              </div>
+              <div className="job-list">
+                {providerJobs.length === 0 && <span>음악/리딩 생성 후 작업 큐가 여기에 쌓입니다.</span>}
+                {providerJobs.slice(0, 8).map((job) => (
+                  <div key={job.id}>
+                    <div>
+                      <strong>{job.title}</strong>
+                      <span>
+                        {job.type} / {job.provider} / {job.status}
+                      </span>
+                    </div>
+                    <div className="job-actions">
+                      <button className="secondary-button compact" onClick={() => handlePollJob(job.id)}>
+                        <RefreshCcw size={14} />
+                        polling
+                      </button>
+                      <button className="secondary-button compact" onClick={() => handleRetryJob(job.id)}>
+                        retry
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+        </section>
+      );
+    }
+
+    if (activePage === "launch") {
+      return (
+        <section className="page-landing launch-page">
+          <div className="launch-hero">
+            <p className="eyebrow">Public Launch Kit</p>
+            <h2>뮤지컬 작가를 위한 AI 워크스테이션</h2>
+            <p>
+              대본, 스토리 바이블, 넘버 위치, 음악 데모, 리딩, 권리 체크를 한 프로젝트 안에서 관리하는 창작 뮤지컬 개발 도구입니다.
+            </p>
+            <div className="page-actions">
+              <button className="primary-button" onClick={() => openPage("workspace")}>
+                <Wand2 size={16} />
+                바로 체험
+              </button>
+              <button className="secondary-button" onClick={() => openPage("billing")}>
+                <CreditCard size={16} />
+                가격 보기
+              </button>
+            </div>
+          </div>
+          <div className="launch-sections">
+            <article>
+              <Globe2 size={20} />
+              <strong>포지셔닝</strong>
+              <span>AI가 대신 쓰는 서비스가 아니라, 작가가 끝까지 완성하도록 돕는 창작 워크스테이션.</span>
+            </article>
+            <article>
+              <ShieldCheck size={20} />
+              <strong>권리 메시지</strong>
+              <span>레퍼런스 직접 모방 금지, provider 상업 사용 조건 확인, 인간 최종 검수.</span>
+            </article>
+            <article>
+              <Music2 size={20} />
+              <strong>차별화</strong>
+              <span>소설/시나리오가 아니라 뮤지컬 넘버 구조와 리딩 비용을 중심으로 설계.</span>
+            </article>
+          </div>
+          <div className="pricing-grid">
+            {(Object.keys(plans) as PlanId[]).map((id) => (
+              <article key={id}>
+                <strong>{plans[id].name}</strong>
+                <b>{plans[id].price}</b>
+                <span>{plans[id].features.join(", ")}</span>
+                <button className="secondary-button" onClick={() => handleCheckout(id)}>
+                  <CreditCard size={16} />
+                  {plans[id].name} checkout
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    if (activePage === "mobile") {
+      return (
+        <section className="page-landing mobile-page">
+          <div className="page-hero">
+            <p className="eyebrow">Mobile Companion</p>
+            <h2>모바일 리뷰/감상 보조</h2>
+            <p>노트북 집필을 기본으로 두고, 휴대폰에서는 공유 링크 확인, 음악 데모 감상, 코멘트 확인에 집중합니다.</p>
+            <div className="page-actions">
+              <button className="primary-button" onClick={() => setShareLink(`${window.location.origin}${window.location.pathname}?project=${project.id}`)}>
+                <Link2 size={16} />
+                모바일 공유 링크 생성
+              </button>
+              <button className="secondary-button" onClick={() => openPage("songs")}>
+                <Smartphone size={16} />
+                넘버 감상으로 이동
+              </button>
+            </div>
+          </div>
+          <div className="mobile-layout">
+            <div className="phone-frame">
+              <div className="phone-top" />
+              <section>
+                <p className="eyebrow">Review Link</p>
+                <h3>{project.title}</h3>
+                <span>{project.bible.logline}</span>
+                <button onClick={handlePlayCue}>데모 듣기</button>
+                <button onClick={handleAddComment}>코멘트 남기기</button>
+              </section>
+            </div>
+            <div className="page-grid">
+              <article>
+                <strong>공유 링크</strong>
+                <span>{shareLink}</span>
+              </article>
+              <article>
+                <strong>모바일 범위</strong>
+                <span>긴 집필은 웹, 짧은 검토/감상/코멘트는 모바일.</span>
+              </article>
+              <article>
+                <strong>다음 개발</strong>
+                <span>PWA 설치, 오디오 플레이리스트, 씬별 코멘트 deep link.</span>
+              </article>
+              <article>
+                <strong>접근 권한</strong>
+                <span>viewer 초대자는 대본 수정 없이 감상과 코멘트만 가능.</span>
+              </article>
+            </div>
           </div>
         </section>
       );
@@ -719,6 +1342,18 @@ export function App() {
           <button className={`project-item ${activePage === "billing" ? "active" : ""}`} onClick={() => openPage("billing")}>
             <CreditCard size={16} />
             <span>결제/크레딧</span>
+          </button>
+          <button className={`project-item ${activePage === "ops" ? "active" : ""}`} onClick={() => openPage("ops")}>
+            <ShieldCheck size={16} />
+            <span>상용화 콘솔</span>
+          </button>
+          <button className={`project-item ${activePage === "launch" ? "active" : ""}`} onClick={() => openPage("launch")}>
+            <Globe2 size={16} />
+            <span>런칭 키트</span>
+          </button>
+          <button className={`project-item ${activePage === "mobile" ? "active" : ""}`} onClick={() => openPage("mobile")}>
+            <Smartphone size={16} />
+            <span>모바일 리뷰</span>
           </button>
         </section>
 
@@ -796,6 +1431,8 @@ export function App() {
                 <option value="fountain">Fountain</option>
                 <option value="manifest">Manifest</option>
                 <option value="pdf">PDF</option>
+                <option value="kstage">K-Stage</option>
+                <option value="reading-packet">Reading Packet</option>
               </select>
               <button className="export-button" onClick={handleExport}>
                 <Download size={16} />
@@ -1238,6 +1875,29 @@ export function App() {
                     {activeCueData.style}
                   </div>
                   {activeCueData.rewrittenPrompt && <small>{activeCueData.rewrittenPrompt}</small>}
+                  <label>
+                    곡별 가사 프롬프트
+                    <textarea
+                      value={activeCueData.lyricsPrompt ?? ""}
+                      onChange={(event) => updateCue(activeCueData.id, { lyricsPrompt: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    음악 모티프
+                    <input
+                      value={activeCueData.motif ?? ""}
+                      onChange={(event) => updateCue(activeCueData.id, { motif: event.target.value })}
+                      placeholder="예: 세탁기 회전 리듬, 새벽 종소리"
+                    />
+                  </label>
+                  <label>
+                    금지/네거티브 프롬프트
+                    <input
+                      value={activeCueData.negativePrompt ?? ""}
+                      onChange={(event) => updateCue(activeCueData.id, { negativePrompt: event.target.value })}
+                      placeholder="기존 넘버 직접 모방 금지"
+                    />
+                  </label>
                 </div>
 
                 <div className="waveform" aria-label="음악 미리듣기 파형">
@@ -1322,6 +1982,14 @@ export function App() {
                 <div className="stripe-note">
                   <Database size={15} />
                   Stripe lookup key: {plan.stripePriceLookupKey}
+                </div>
+                <button className="primary-button" onClick={() => handleCheckout(planId)}>
+                  <CreditCard size={16} />
+                  checkout 세션 만들기
+                </button>
+                <div className="stripe-note">
+                  <Link2 size={15} />
+                  {checkoutStatus}
                 </div>
                 <div className="usage-ledger">
                   {usageLedger.slice(0, 6).map((event) => (

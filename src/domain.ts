@@ -11,6 +11,8 @@ export type MusicCue = {
   duration: string;
   lyricsPrompt?: string;
   rewrittenPrompt?: string;
+  negativePrompt?: string;
+  motif?: string;
   taskId?: string;
   demoAudioUrl?: string | null;
 };

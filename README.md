@@ -1,6 +1,6 @@
 # StageWrite AI
 
-뮤지컬 작사가/극작가를 위한 AI 워크스테이션 MVP입니다. 웹 편집기, 스토리 바이블, 음악 큐 추천, 음악 생성 mock 파이프라인, Studio 플랜용 전체 리딩 mock, 크레딧 가드, 내보내기를 포함합니다.
+뮤지컬 작사가/극작가를 위한 AI 워크스테이션 MVP입니다. 웹 편집기, 스토리 바이블, 음악 큐 추천, 음악 생성 mock 파이프라인, Studio 플랜용 전체 리딩 mock, 크레딧 가드, 내보내기, 상용화 콘솔, 팀 초대, 버전 히스토리, 권리 체크, checkout mock, provider 작업 큐를 포함합니다.
 
 Public MVP: https://sequenzen.github.io/ai-musical-workstation/
 

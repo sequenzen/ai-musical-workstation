@@ -81,6 +81,84 @@ app.post("/api/generate-reading", async (request, response) => {
   }
 });
 
+app.post("/api/workspace/sync", (request, response) => {
+  response.json({
+    syncedAt: new Date().toISOString(),
+    storageMode: request.body?.account?.storageMode ?? "local-first",
+    provider: "mock-workspace-store",
+  });
+});
+
+app.post("/api/checkout/create-session", (request, response) => {
+  const planId = request.body?.planId ?? "writer";
+  response.json({
+    sessionId: `checkout-mock-${Date.now()}`,
+    planId,
+    url: `${process.env.APP_PUBLIC_URL ?? "https://sequenzen.github.io/ai-musical-workstation"}/billing/success?plan=${planId}`,
+    status: process.env.STRIPE_SECRET_KEY ? "created" : "mock",
+  });
+});
+
+app.post("/api/webhooks/stripe", (request, response) => {
+  response.json({
+    received: true,
+    eventType: request.body?.type ?? "checkout.session.completed",
+    processedAt: new Date().toISOString(),
+    provider: process.env.STRIPE_WEBHOOK_SECRET ? "stripe-webhook" : "mock-stripe-webhook",
+  });
+});
+
+app.post("/api/provider-jobs/status", (request, response) => {
+  const job = request.body?.job ?? {};
+  const nextStatus = job.status === "queued" ? "processing" : "ready";
+  response.json({
+    ...job,
+    status: nextStatus,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.post("/api/provider-jobs/retry", (request, response) => {
+  const job = request.body?.job ?? {};
+  response.json({
+    ...job,
+    status: "queued",
+    retryCount: Number(job.retryCount ?? 0) + 1,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.post("/api/rights/acknowledge", (request, response) => {
+  response.json({
+    acknowledgedAt: new Date().toISOString(),
+    rightsId: `rights-${Date.now()}`,
+    projectTitle: request.body?.projectTitle,
+    provider: "mock-rights-ledger",
+  });
+});
+
+app.post("/api/team/invite", (request, response) => {
+  const email = request.body?.email ?? "collaborator@example.com";
+  response.json({
+    inviteId: `invite-${Date.now()}`,
+    shareLink: `${process.env.APP_PUBLIC_URL ?? "https://sequenzen.github.io/ai-musical-workstation"}/?invite=${encodeURIComponent(email)}`,
+    provider: "mock-team-directory",
+  });
+});
+
+app.post("/api/usage/preview", (request, response) => {
+  const policy = request.body?.policy ?? {};
+  const currentSpend = Number(request.body?.currentSpend ?? 0);
+  const requestedCost = Number(request.body?.requestedCost ?? 0);
+  const cap = Number(policy.monthlyCreditCap ?? 0);
+  const hardStop = Boolean(policy.hardStopEnabled);
+  response.json({
+    allowed: !hardStop || currentSpend + requestedCost <= cap,
+    remainingAfter: Math.max(0, cap - currentSpend - requestedCost),
+    provider: "mock-usage-guard",
+  });
+});
+
 if (isProduction) {
   app.use(express.static(distDir));
   app.get(/.*/, (_request, response) => {
