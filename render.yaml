@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: stagewrite-ai
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_MODEL
+        value: gpt-5.2
+      - key: MUSIC_PROVIDER_NAME
+        value: mock
+      - key: VOICE_PROVIDER_NAME
+        value: mock
