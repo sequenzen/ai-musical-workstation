@@ -517,6 +517,140 @@ button:disabled {
   line-height: 1.35;
 }
 
+.page-landing {
+  display: grid;
+  gap: 14px;
+}
+
+.page-hero,
+.page-grid article,
+.character-grid article,
+.song-vault-grid article,
+.export-options article,
+.pricing-grid article {
+  border: 1px solid #d8ded4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.page-hero {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.page-hero h2,
+.page-hero p {
+  margin: 0;
+}
+
+.page-hero h2 {
+  font-size: 23px;
+}
+
+.page-hero p {
+  color: #516059;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.page-actions .primary-button,
+.page-actions .secondary-button {
+  flex: 0 1 auto;
+}
+
+.page-grid,
+.character-grid,
+.song-vault-grid,
+.export-options,
+.pricing-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.page-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.page-grid.three,
+.export-options,
+.pricing-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.character-grid,
+.song-vault-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.page-grid article,
+.character-grid article,
+.song-vault-grid article,
+.export-options article,
+.pricing-grid article {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 116px;
+  padding: 13px;
+}
+
+.page-grid strong,
+.character-grid strong,
+.song-vault-grid strong,
+.export-options strong,
+.pricing-grid strong {
+  color: #1f3029;
+  font-size: 14px;
+}
+
+.page-grid span,
+.character-grid span,
+.song-vault-grid span,
+.export-options span,
+.pricing-grid span {
+  color: #596760;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.character-grid p,
+.song-vault-grid p {
+  margin: 0;
+  color: #44524b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.character-grid small,
+.pricing-grid small {
+  color: #708078;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.song-vault-grid article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pricing-grid article.active {
+  border-color: #0c7c66;
+  background: #edf7f3;
+}
+
+.pricing-grid b {
+  color: #0c6f5b;
+  font-size: 18px;
+}
+
 .script-page {
   overflow: hidden;
   border: 1px solid #d8ded4;
@@ -1156,6 +1290,15 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .page-grid,
+  .page-grid.three,
+  .character-grid,
+  .song-vault-grid,
+  .export-options,
+  .pricing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .script-editor {
     min-height: 520px;
     padding: 24px;
@@ -1199,7 +1342,13 @@ button:disabled {
   .analysis-strip,
   .music-map-grid,
   .settings-two-col,
-  .step-list.horizontal {
+  .step-list.horizontal,
+  .page-grid,
+  .page-grid.three,
+  .character-grid,
+  .song-vault-grid,
+  .export-options,
+  .pricing-grid {
     grid-template-columns: 1fr;
   }
 

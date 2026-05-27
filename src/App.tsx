@@ -61,6 +61,8 @@ const planStorageKey = "stagewrite.plan.v2";
 
 const settingSteps = ["기본", "세계", "인물", "구조", "음악", "제작"];
 
+type AppPage = "workspace" | "overview" | "bible" | "songs" | "export" | "billing";
+
 function loadJson<T>(key: string, fallback: T): T {
   try {
     const stored = localStorage.getItem(key);
@@ -151,6 +153,7 @@ export function App() {
   const [readingStatus, setReadingStatus] = useState<"idle" | "generating" | "ready">("idle");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeInspector, setActiveInspector] = useState<"settings" | "music" | "voice" | "billing">("settings");
+  const [activePage, setActivePage] = useState<AppPage>("workspace");
   const [readingMode, setReadingMode] = useState(false);
 
   const project = useMemo(
@@ -217,6 +220,8 @@ export function App() {
     setProjects((current) => [fresh, ...current]);
     setActiveProjectId(fresh.id);
     setActiveCue(1);
+    setActivePage("overview");
+    setActiveInspector("settings");
     setNotice("새 프로젝트를 만들었습니다. 오른쪽 조건을 채워 대본을 생성하세요.");
   }
 
@@ -229,19 +234,48 @@ export function App() {
     };
     setProjects((current) => [copy, ...current]);
     setActiveProjectId(copy.id);
+    setActivePage("overview");
     setNotice("현재 프로젝트를 복사했습니다.");
   }
 
   function handleResetProject() {
-    updateCurrentProject(() => projectPresets.find((preset) => preset.id === project.id) ?? initialProject);
+    updateCurrentProject((current) => {
+      const preset = projectPresets.find((item) => item.id === current.id);
+      if (preset) return preset;
+
+      return {
+        ...initialProject,
+        id: current.id,
+        title: current.title,
+        bible: {
+          ...initialProject.bible,
+          title: current.title,
+        },
+      };
+    });
     setActiveCue(1);
     setReadingStatus("idle");
+    setActivePage("overview");
+    setActiveInspector("settings");
     setNotice("현재 프로젝트를 기본 샘플 상태로 되돌렸습니다.");
   }
 
   function handleSave() {
     localStorage.setItem(projectsStorageKey, JSON.stringify(projects));
     setNotice("프로젝트, 조건, 대본, 음악 큐를 브라우저 저장소에 저장했습니다.");
+  }
+
+  function handleRefreshBible() {
+    const bible = buildProjectBible(project.settings, project.prompt, project.title);
+    const cues = generateLocalCues({ ...project, bible });
+    updateProject({
+      bible,
+      cues,
+      runtimeReport: buildRuntimeReport({ ...project, bible, cues }),
+      aiSuggestions: buildAiSuggestions({ ...project, bible, cues }),
+    });
+    setActiveCue(cues[0]?.id ?? 1);
+    setNotice("현재 조건으로 스토리 바이블, 씬 카드, 넘버 맵을 다시 구성했습니다.");
   }
 
   async function handleGenerateDraft() {
@@ -385,7 +419,11 @@ export function App() {
   }
 
   function handleExport() {
-    exportProject(exportFormat, {
+    handleExportAs(exportFormat);
+  }
+
+  function handleExportAs(format: ExportFormat) {
+    exportProject(format, {
       title: project.title,
       prompt: project.prompt,
       settings: project.settings,
@@ -394,8 +432,9 @@ export function App() {
       cues: project.cues,
       usageLedger,
     });
-    addUsage(makeUsageEvent("export", 0, `${exportFormat} export`));
-    setNotice(`${exportFormat.toUpperCase()} 내보내기를 실행했습니다.`);
+    setExportFormat(format);
+    addUsage(makeUsageEvent("export", 0, `${format} export`));
+    setNotice(`${format.toUpperCase()} 내보내기를 실행했습니다.`);
   }
 
   function toggleComment(commentId: string) {
@@ -404,6 +443,237 @@ export function App() {
         comment.id === commentId ? { ...comment, resolved: !comment.resolved } : comment,
       ),
     });
+  }
+
+  function openPage(page: AppPage) {
+    setActivePage(page);
+    if (page === "billing") setActiveInspector("billing");
+    if (page === "songs") setActiveInspector("music");
+    if (page === "bible" || page === "overview") setActiveInspector("settings");
+    setNotice(
+      {
+        workspace: "작업실로 돌아왔습니다.",
+        overview: "기획 보드에서 작품의 핵심 조건과 다음 액션을 확인합니다.",
+        bible: "스토리 바이블 전체 페이지를 열었습니다.",
+        songs: "넘버 보관함에서 음악 큐와 가사 프롬프트를 관리합니다.",
+        export: "내보내기 센터에서 포맷별 산출물을 만들 수 있습니다.",
+        billing: "결제/크레딧 페이지에서 플랜과 사용량을 확인합니다.",
+      }[page],
+    );
+  }
+
+  function renderLandingPage() {
+    if (activePage === "overview") {
+      return (
+        <section className="page-landing">
+          <div className="page-hero">
+            <p className="eyebrow">Project Board</p>
+            <h2>{project.title}</h2>
+            <p>{project.bible.logline}</p>
+            <div className="page-actions">
+              <button className="primary-button" onClick={handleGenerateDraft}>
+                <Wand2 size={16} />
+                조건으로 초안 생성
+              </button>
+              <button className="secondary-button" onClick={() => openPage("bible")}>
+                <BookOpenText size={16} />
+                바이블 보기
+              </button>
+              <button className="secondary-button" onClick={() => openPage("workspace")}>
+                <FileText size={16} />
+                작업실 열기
+              </button>
+            </div>
+          </div>
+          <div className="page-grid three">
+            <article>
+              <strong>핵심 갈등</strong>
+              <span>{project.settings.centralConflict}</span>
+            </article>
+            <article>
+              <strong>제작 조건</strong>
+              <span>
+                {project.settings.stageScale} / {project.settings.budgetRange} / {project.settings.rating}
+              </span>
+            </article>
+            <article>
+              <strong>목표 구조</strong>
+              <span>
+                {project.settings.actStructure}, {project.settings.sceneCount}장, {project.settings.songCount}곡
+              </span>
+            </article>
+          </div>
+          <div className="page-grid">
+            {project.bible.sceneCards.slice(0, 6).map((card) => (
+              <article key={card}>
+                <strong>Scene</strong>
+                <span>{card}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    if (activePage === "bible") {
+      return (
+        <section className="page-landing">
+          <div className="page-hero">
+            <p className="eyebrow">Story Bible</p>
+            <h2>스토리 바이블</h2>
+            <p>{project.bible.synopsis}</p>
+            <div className="page-actions">
+              <button className="primary-button" onClick={handleRefreshBible}>
+                <RefreshCcw size={16} />
+                조건으로 바이블 갱신
+              </button>
+              <button className="secondary-button" onClick={() => openPage("workspace")}>
+                <FileText size={16} />
+                대본으로 이동
+              </button>
+            </div>
+          </div>
+          <div className="character-grid">
+            {project.bible.characters.map((character) => (
+              <article key={character.name}>
+                <strong>{character.name}</strong>
+                <span>{character.role}</span>
+                <p>욕망: {character.desire}</p>
+                <p>비밀: {character.secret}</p>
+                <small>{character.voice}</small>
+              </article>
+            ))}
+          </div>
+          <div className="page-grid">
+            {project.bible.structure.map((item) => (
+              <article key={item}>
+                <strong>Structure</strong>
+                <span>{item}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    if (activePage === "songs") {
+      return (
+        <section className="page-landing">
+          <div className="page-hero">
+            <p className="eyebrow">Song Vault</p>
+            <h2>넘버 보관함</h2>
+            <p>{project.settings.songCount}곡 목표. 큐를 선택하면 오른쪽 음악 패널에서 생성/재생할 수 있습니다.</p>
+            <div className="page-actions">
+              <button className="primary-button" onClick={handleSuggestCues}>
+                <Sparkles size={16} />
+                넘버 맵 다시 만들기
+              </button>
+              <button className="secondary-button" onClick={() => openPage("workspace")}>
+                <FileText size={16} />
+                대본 위치 보기
+              </button>
+            </div>
+          </div>
+          <div className="song-vault-grid">
+            {project.cues.map((cue) => (
+              <article key={cue.id}>
+                <div>
+                  <strong>{cue.title}</strong>
+                  <StatusPill status={cue.status} />
+                </div>
+                <span>{cue.placement}</span>
+                <p>{cue.lyricsPrompt}</p>
+                <button
+                  className="secondary-button compact"
+                  onClick={() => {
+                    setActiveCue(cue.id);
+                    setActiveInspector("music");
+                  }}
+                >
+                  <AudioLines size={15} />
+                  큐 열기
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    if (activePage === "export") {
+      return (
+        <section className="page-landing">
+          <div className="page-hero">
+            <p className="eyebrow">Export Center</p>
+            <h2>내보내기 센터</h2>
+            <p>대본, 스토리 바이블, 음악 큐, 사용량 기록을 목적에 맞는 포맷으로 내보냅니다.</p>
+          </div>
+          <div className="export-options">
+            {(["markdown", "fountain", "manifest", "pdf"] as ExportFormat[]).map((format) => (
+              <article key={format}>
+                <strong>{format.toUpperCase()}</strong>
+                <span>
+                  {
+                    {
+                      markdown: "작가 공유용 문서",
+                      fountain: "스크립트 툴 호환 포맷",
+                      manifest: "개발/백업용 JSON 패키지",
+                      pdf: "인쇄/리딩용 페이지",
+                    }[format]
+                  }
+                </span>
+                <button className="primary-button" onClick={() => handleExportAs(format)}>
+                  <Download size={16} />
+                  {format.toUpperCase()} 생성
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    if (activePage === "billing") {
+      return (
+        <section className="page-landing">
+          <div className="page-hero">
+            <p className="eyebrow">Billing</p>
+            <h2>결제/크레딧</h2>
+            <p>비용이 큰 음악 생성과 전체 리딩은 크레딧 차감 전에 잔액을 확인합니다.</p>
+          </div>
+          <div className="pricing-grid">
+            {(Object.keys(plans) as PlanId[]).map((id) => (
+              <article className={planId === id ? "active" : ""} key={id}>
+                <strong>{plans[id].name}</strong>
+                <b>{plans[id].price}</b>
+                <span>음악 {plans[id].musicCredits} cr / 리딩 {plans[id].readingCredits} cr</span>
+                <small>{plans[id].features.join(", ")}</small>
+                <button className="secondary-button" onClick={() => setPlanId(id)}>
+                  <CreditCard size={16} />
+                  {plans[id].name} 선택
+                </button>
+              </article>
+            ))}
+          </div>
+          <div className="page-grid three">
+            <article>
+              <strong>음악 잔액</strong>
+              <span>{musicRemaining} credits</span>
+            </article>
+            <article>
+              <strong>리딩 잔액</strong>
+              <span>{readingRemaining} credits</span>
+            </article>
+            <article>
+              <strong>Stripe key</strong>
+              <span>{plan.stripePriceLookupKey}</span>
+            </article>
+          </div>
+        </section>
+      );
+    }
+
+    return null;
   }
 
   return (
@@ -424,6 +694,34 @@ export function App() {
           새 뮤지컬
         </button>
 
+        <section className="side-section page-nav">
+          <h2>페이지</h2>
+          <button className={`project-item ${activePage === "workspace" ? "active" : ""}`} onClick={() => openPage("workspace")}>
+            <FileText size={16} />
+            <span>작업실</span>
+          </button>
+          <button className={`project-item ${activePage === "overview" ? "active" : ""}`} onClick={() => openPage("overview")}>
+            <Library size={16} />
+            <span>기획 보드</span>
+          </button>
+          <button className={`project-item ${activePage === "bible" ? "active" : ""}`} onClick={() => openPage("bible")}>
+            <BookOpenText size={16} />
+            <span>스토리 바이블</span>
+          </button>
+          <button className={`project-item ${activePage === "songs" ? "active" : ""}`} onClick={() => openPage("songs")}>
+            <Music2 size={16} />
+            <span>넘버 보관함</span>
+          </button>
+          <button className={`project-item ${activePage === "export" ? "active" : ""}`} onClick={() => openPage("export")}>
+            <Download size={16} />
+            <span>내보내기 센터</span>
+          </button>
+          <button className={`project-item ${activePage === "billing" ? "active" : ""}`} onClick={() => openPage("billing")}>
+            <CreditCard size={16} />
+            <span>결제/크레딧</span>
+          </button>
+        </section>
+
         <section className="side-section">
           <h2>프로젝트</h2>
           {projects.map((item) => (
@@ -433,6 +731,7 @@ export function App() {
               onClick={() => {
                 setActiveProjectId(item.id);
                 setActiveCue(item.cues[0]?.id ?? 1);
+                setActivePage("overview");
                 setNotice(`${item.title} 프로젝트로 전환했습니다.`);
               }}
             >
@@ -508,6 +807,8 @@ export function App() {
 
         <div className="workspace-grid">
           <section className="composer-panel">
+            {activePage === "workspace" ? (
+              <>
             <div className="prompt-card">
               <div className="prompt-head">
                 <div>
@@ -597,6 +898,10 @@ export function App() {
                 readOnly={readingMode}
               />
             </div>
+              </>
+            ) : (
+              renderLandingPage()
+            )}
           </section>
 
           <aside className="control-panel">
@@ -613,7 +918,13 @@ export function App() {
                 <Mic2 size={15} />
                 리딩
               </button>
-              <button className={activeInspector === "billing" ? "active" : ""} onClick={() => setActiveInspector("billing")}>
+              <button
+                className={activeInspector === "billing" ? "active" : ""}
+                onClick={() => {
+                  setActiveInspector("billing");
+                  setActivePage("billing");
+                }}
+              >
                 <CreditCard size={15} />
                 결제
               </button>

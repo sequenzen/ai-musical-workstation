@@ -45,6 +45,8 @@ cp .env.example .env
 
 현재 저장소는 GitHub Pages에 정적 MVP로 배포되어 있고, Render, Railway, Docker 백엔드 배포 준비도 되어 있습니다. 검증 상태는 `DEPLOYMENT_STATUS.md`에 정리되어 있습니다.
 
+제품 버튼/페이지 감사 기준은 `docs/product-audit-ko.md`에 정리되어 있습니다.
+
 ### Render
 
 이 저장소를 GitHub에 push한 뒤 Render에서 Blueprint로 `render.yaml`을 선택하면 됩니다.
