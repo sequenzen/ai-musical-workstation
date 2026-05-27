@@ -18,6 +18,8 @@ export type MusicCue = {
 export type Character = {
   name: string;
   role: string;
+  desire: string;
+  secret: string;
   voice: string;
   voiceId?: string;
 };
@@ -26,34 +28,67 @@ export type ProjectSettings = {
   genre: string;
   reference: string;
   lengthMinutes: number;
+  pageTarget: number;
   stageScale: string;
   characterCount: number;
   musicDensity: string;
+  songCount: number;
   tone: string;
   audience: "상업" | "공모전" | "워크숍";
+  outputMode: "스토리+대본" | "대본 중심" | "가사 중심";
+  actStructure: "단막" | "2막" | "3막";
+  sceneCount: number;
+  era: string;
+  location: string;
+  protagonist: string;
+  protagonistGoal: string;
+  antagonistForce: string;
+  centralConflict: string;
+  endingType: string;
+  dialogueStyle: string;
+  lyricStyle: string;
+  danceLevel: string;
+  language: string;
+  rating: string;
+  budgetRange: string;
+  rightsMode: string;
 };
 
 export type ProjectBible = {
   title: string;
   logline: string;
+  premise: string;
   synopsis: string;
   characters: Character[];
   themes: string[];
   structure: string[];
+  sceneCards: string[];
+  songMap: string[];
+};
+
+export type ProjectComment = {
+  id: string;
+  target: string;
+  body: string;
+  resolved: boolean;
 };
 
 export type ProjectState = {
+  id: string;
   title: string;
   prompt: string;
   settings: ProjectSettings;
   bible: ProjectBible;
   script: string;
   cues: MusicCue[];
+  comments: ProjectComment[];
+  aiSuggestions: string[];
+  runtimeReport: string;
 };
 
 export type PlanId = "free" | "writer" | "composer" | "studio";
 
-export type UsageType = "draft" | "music" | "reading" | "export";
+export type UsageType = "draft" | "music" | "reading" | "export" | "analysis";
 
 export type UsageEvent = {
   id: string;
@@ -118,31 +153,88 @@ export function estimateReadingCost(script: string) {
   return Math.max(12, Math.ceil(script.length / 850) * 8);
 }
 
+export function makeUsageEvent(type: UsageType, amount: number, label: string): UsageEvent {
+  return {
+    id: `${type}-${Date.now()}-${Math.round(Math.random() * 10000)}`,
+    type,
+    amount,
+    label,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 export const initialSettings: ProjectSettings = {
   genre: "컨템포러리 뮤지컬",
   reference: "어쩌면 해피엔딩, 렌트, 빨래",
   lengthMinutes: 35,
+  pageTarget: 35,
   stageScale: "소극장 3~5인극",
   characterCount: 3,
   musicDensity: "중간: 6~8곡",
+  songCount: 7,
   tone: "따뜻하지만 쓸쓸한 도시 판타지",
   audience: "상업",
+  outputMode: "스토리+대본",
+  actStructure: "2막",
+  sceneCount: 8,
+  era: "현재, 재개발을 앞둔 도시",
+  location: "24시간 세탁소와 사라지는 골목",
+  protagonist: "민서",
+  protagonistGoal: "끝내지 못한 노래를 완성해 자기 목소리를 증명한다",
+  antagonistForce: "재개발 일정과 스스로를 검열하는 마음",
+  centralConflict: "사라지는 장소를 기록하려는 사람과 빨리 떠나야 살아남는 사람의 충돌",
+  endingType: "씁쓸하지만 희망적인 열린 결말",
+  dialogueStyle: "생활 대사와 시적인 독백의 균형",
+  lyricStyle: "말맛이 살아 있는 한국어 가사, 짧은 후렴",
+  danceLevel: "낮음: 동선 중심",
+  language: "한국어",
+  rating: "12세 이상",
+  budgetRange: "소극장 저예산",
+  rightsMode: "레퍼런스는 구조 참고만, 직접 모방 금지",
 };
 
 export const initialCharacters: Character[] = [
-  { name: "민서", role: "작사가 지망생", voice: "선명한 알토, 빠른 말맛", voiceId: "minseo-alto" },
-  { name: "도윤", role: "세탁소 야간 직원", voice: "부드러운 테너, 긴 호흡", voiceId: "doyoon-tenor" },
-  { name: "해린", role: "재개발 조합 실무자", voice: "낮은 메조, 건조한 리듬", voiceId: "haerin-mezzo" },
+  {
+    name: "민서",
+    role: "작사가 지망생",
+    desire: "자기 이름으로 불릴 첫 노래를 완성하고 싶다",
+    secret: "이미 한 번 공모전 최종에서 떨어진 뒤 쓰기를 멈췄다",
+    voice: "선명한 알토, 빠른 말맛",
+    voiceId: "minseo-alto",
+  },
+  {
+    name: "도윤",
+    role: "세탁소 야간 직원",
+    desire: "이 동네의 마지막 새벽을 조용히 넘기고 싶다",
+    secret: "카세트 속 어린 목소리의 주인이다",
+    voice: "부드러운 테너, 긴 호흡",
+    voiceId: "doyoon-tenor",
+  },
+  {
+    name: "해린",
+    role: "재개발 조합 실무자",
+    desire: "정해진 일정을 문제없이 끝내고 싶다",
+    secret: "어릴 때 이 동네에서 살았지만 아무도 기억하지 못한다",
+    voice: "낮은 메조, 건조한 리듬",
+    voiceId: "haerin-mezzo",
+  },
 ];
 
 export const initialBible: ProjectBible = {
   title: "새벽의 세탁소",
   logline: "사라질 동네의 24시간 세탁소에서 오래된 카세트를 발견한 작사가 지망생이 잃어버린 목소리들을 노래로 복원한다.",
+  premise: "사람들이 맡긴 옷에는 지워지지 않는 시간의 얼룩이 남아 있고, 세탁소는 그 기억을 밤마다 되감는다.",
   synopsis:
     "재개발 구역 끝의 세탁소는 주민들이 맡긴 빨래보다 더 오래된 기억을 품고 있다. 민서는 카세트에 담긴 허밍을 따라가며 동네가 사라지기 전 남겨야 할 마지막 노래를 찾는다.",
   characters: initialCharacters,
   themes: ["사라지는 장소", "기억과 목소리", "창작자의 두려움", "작은 공동체"],
   structure: ["1막: 카세트 발견과 동네의 비밀", "2막: 목소리의 주인과 선택", "피날레: 세탁소의 마지막 새벽"],
+  sceneCards: [
+    "새벽 세탁소에서 민서와 도윤이 만난다.",
+    "카세트 허밍이 세탁기 리듬과 겹치며 첫 번째 단서를 남긴다.",
+    "해린이 철거 일정을 통보하고 세 사람의 이해관계가 충돌한다.",
+  ],
+  songMap: ["Opening: 세탁기 속 작은 달", "I Want Song: 도망가는 미래", "Eleven O'Clock: 접힌 시간"],
 };
 
 export const initialScript = `ACT 1, SCENE 1. 새벽의 세탁소
@@ -166,40 +258,6 @@ export const initialScript = `ACT 1, SCENE 1. 새벽의 세탁소
 
 도윤
 아니요. 여기서 시간을 접었어요.`;
-
-export const draftScript = `ACT 1, SCENE 1. 새벽의 세탁소
-
-[무대]
-도시 재개발 구역 끝, 24시간 세탁소. 천장 형광등은 절반만 켜져 있고, 세탁기 안에서 돌아가는 셔츠들이 작은 달처럼 번진다.
-
-민서
-오늘도 내가 제일 먼저 왔네. 세상이 나보다 부지런하면 좀 곤란한데.
-
-도윤
-문 열자마자 그런 말 하면 손님이 도망가요.
-
-민서
-손님이 아니라 미래가 도망가는 거겠지.
-
-도윤
-미래가 그렇게 쉽게 도망가면 붙잡기 편하겠네요. 문 앞에서 잡으면 되니까.
-
-[짧은 침묵]
-민서는 처음으로 웃는다. 도윤은 계산대 밑에서 오래된 카세트테이프 하나를 꺼낸다.
-
-민서
-그건 뭐예요?
-
-도윤
-이 동네가 사라지기 전에 남긴 목소리요. 누가 맡겼는지는 몰라요. 그런데 매일 새벽 같은 부분에서 멈춰요.
-
-카세트가 재생된다. 지직거리는 잡음 뒤로 어린아이의 허밍이 들린다. 세탁기 회전음이 같은 박자로 따라붙는다.
-
-민서
-노래네요.
-
-도윤
-아직은 아니에요. 누군가 끝까지 써주면요.`;
 
 export const initialCues: MusicCue[] = [
   {
@@ -238,20 +296,51 @@ export const initialCues: MusicCue[] = [
 ];
 
 export const initialProject: ProjectState = {
+  id: "laundry-dawn",
   title: "새벽의 세탁소",
   prompt: "글을 써줘. 사라지는 동네의 세탁소에서 오래된 카세트가 발견되는 이야기.",
   settings: initialSettings,
   bible: initialBible,
   script: initialScript,
   cues: initialCues,
+  comments: [],
+  aiSuggestions: [],
+  runtimeReport: "A4 35쪽 기준 약 35분. 현재 초안은 1장 샘플 분량입니다.",
 };
 
-export function makeUsageEvent(type: UsageType, amount: number, label: string): UsageEvent {
-  return {
-    id: `${type}-${Date.now()}-${Math.round(Math.random() * 10000)}`,
-    type,
-    amount,
-    label,
-    createdAt: new Date().toISOString(),
-  };
-}
+export const projectPresets: ProjectState[] = [
+  initialProject,
+  {
+    ...initialProject,
+    id: "two-act-test",
+    title: "2막 구조 실험",
+    prompt: "두 자매가 폐쇄 직전의 지방 극장에서 마지막 공연을 준비하는 뮤지컬을 써줘.",
+    settings: {
+      ...initialSettings,
+      genre: "소극장 창작 뮤지컬",
+      reference: "컴퍼니, 넥스트 투 노멀, 빨래",
+      location: "폐쇄 직전의 지방 소극장",
+      protagonist: "서윤",
+      protagonistGoal: "극장을 팔지 않고 마지막 공연으로 후원자를 설득한다",
+      antagonistForce: "현실적인 빚과 가족의 오래된 원망",
+      centralConflict: "무대를 지키려는 사람과 삶을 다시 시작하려는 사람의 충돌",
+      tone: "가족 드라마와 블랙코미디",
+      songCount: 9,
+      sceneCount: 10,
+    },
+  },
+  {
+    ...initialProject,
+    id: "lyric-vault",
+    title: "넘버 가사 보관함",
+    prompt: "미완성 넘버들을 모아 캐릭터별 가사 스케치를 정리해줘.",
+    settings: {
+      ...initialSettings,
+      outputMode: "가사 중심",
+      musicDensity: "높음: 10곡 이상",
+      songCount: 12,
+      lyricStyle: "반복 가능한 후렴과 캐릭터별 어휘 차이가 강한 가사",
+      tone: "선명하고 리듬감 있는 청춘극",
+    },
+  },
+];

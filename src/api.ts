@@ -1,11 +1,10 @@
 import {
-  draftScript,
-  initialBible,
   initialCues,
   type MusicCue,
   type ProjectBible,
   type ProjectSettings,
 } from "./domain";
+import { generateLocalCues, generateLocalDraft } from "./generators";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -27,30 +26,63 @@ async function postJson<T>(path: string, body: JsonRecord, fallback: T): Promise
   }
 }
 
-export function generateDraft(settings: ProjectSettings, prompt: string) {
-  return postJson(
+export async function generateDraft(settings: ProjectSettings, prompt: string, title = "새 뮤지컬") {
+  const localDraft = generateLocalDraft(settings, prompt, title);
+  const result = await postJson(
     "/api/generate-draft",
     { settings, prompt },
-    {
-      script: draftScript,
-      bible: initialBible,
-      provider: "client-mock",
-    },
+    localDraft,
   );
+
+  if (result.provider?.includes("mock")) {
+    return localDraft;
+  }
+
+  return {
+    ...localDraft,
+    ...result,
+    bible: {
+      ...localDraft.bible,
+      ...result.bible,
+      characters: result.bible?.characters?.length ? result.bible.characters : localDraft.bible.characters,
+      sceneCards: result.bible?.sceneCards?.length ? result.bible.sceneCards : localDraft.bible.sceneCards,
+      songMap: result.bible?.songMap?.length ? result.bible.songMap : localDraft.bible.songMap,
+      structure: result.bible?.structure?.length ? result.bible.structure : localDraft.bible.structure,
+      themes: result.bible?.themes?.length ? result.bible.themes : localDraft.bible.themes,
+    },
+  };
 }
 
-export function suggestMusicCues(script: string, bible: ProjectBible, settings: ProjectSettings) {
-  return postJson(
+export async function suggestMusicCues(script: string, bible: ProjectBible, settings: ProjectSettings, title = bible.title) {
+  const localCues = generateLocalCues({
+    id: "local",
+    title,
+    prompt: "",
+    settings,
+    bible,
+    script,
+    cues: initialCues,
+    comments: [],
+    aiSuggestions: [],
+    runtimeReport: "",
+  });
+  const result = await postJson(
     "/api/suggest-cues",
     { script, bible, settings },
     {
-      cues: initialCues.map((cue, index) => ({
-        ...cue,
-        status: index === 0 ? "ready" : "suggested",
-      })) as MusicCue[],
+      cues: localCues,
       provider: "client-mock",
     },
   );
+
+  if (result.provider?.includes("mock")) {
+    return {
+      cues: localCues,
+      provider: "client-condition-dramaturg",
+    };
+  }
+
+  return result;
 }
 
 export type RewriteMusicPromptResponse = {

@@ -44,6 +44,31 @@ button:disabled {
   min-height: 100vh;
 }
 
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 74px minmax(0, 1fr);
+}
+
+.app-shell.sidebar-collapsed .project-sidebar {
+  align-items: center;
+  padding: 18px 10px;
+}
+
+.app-shell.sidebar-collapsed .brand-row div:not(.brand-mark),
+.app-shell.sidebar-collapsed .new-project-button,
+.app-shell.sidebar-collapsed .side-section h2,
+.app-shell.sidebar-collapsed .character-row,
+.app-shell.sidebar-collapsed .usage-box,
+.app-shell.sidebar-collapsed .project-item span,
+.app-shell.sidebar-collapsed .project-item:not(.active) {
+  display: none;
+}
+
+.app-shell.sidebar-collapsed .project-item {
+  justify-content: center;
+  width: 42px;
+  padding: 0;
+}
+
 .project-sidebar {
   position: sticky;
   top: 0;
@@ -231,6 +256,16 @@ button:disabled {
   font-size: 24px;
 }
 
+.title-input {
+  width: min(520px, 52vw);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #17211d;
+  font-size: 24px;
+  font-weight: 900;
+}
+
 .top-actions {
   display: flex;
   align-items: center;
@@ -384,9 +419,102 @@ button:disabled {
   color: #6a4a04;
 }
 
+.secondary-button.compact {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
 .script-toolbar {
   display: flex;
   gap: 8px;
+}
+
+.analysis-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.analysis-strip div,
+.music-map-inline,
+.bible-panel,
+.comments-panel {
+  border: 1px solid #d8ded4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.analysis-strip div {
+  display: grid;
+  gap: 5px;
+  min-height: 82px;
+  padding: 12px;
+}
+
+.analysis-strip strong {
+  color: #1f3029;
+  font-size: 13px;
+}
+
+.analysis-strip span {
+  color: #647069;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.music-map-inline {
+  padding: 14px;
+}
+
+.map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.map-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.music-map-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.music-map-grid button {
+  display: grid;
+  gap: 6px;
+  min-height: 98px;
+  padding: 11px;
+  border: 1px solid #dce2d8;
+  border-radius: 8px;
+  background: #fbfcf8;
+  color: #21312a;
+  text-align: left;
+}
+
+.music-map-grid button.active,
+.music-map-grid button:hover {
+  border-color: #0c7c66;
+  background: #eaf6f1;
+}
+
+.music-map-grid strong {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.music-map-grid span {
+  color: #647069;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .script-page {
@@ -420,10 +548,44 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+.script-editor.reading {
+  background: #fffdf7;
+  color: #342c20;
+}
+
 .control-panel {
   display: grid;
   align-content: start;
   gap: 12px;
+}
+
+.inspector-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #d8ded4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.inspector-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #66716b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.inspector-tabs button.active {
+  background: #e7f2ee;
+  color: #0b6e5b;
 }
 
 .settings-panel,
@@ -431,6 +593,8 @@ button:disabled {
 .voice-panel,
 .billing-panel,
 .notice-panel,
+.bible-panel,
+.comments-panel,
 .prompt-pipeline {
   padding: 15px;
 }
@@ -499,6 +663,12 @@ button:disabled {
   text-align: right;
 }
 
+.settings-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -530,6 +700,11 @@ button:disabled {
   display: grid;
   gap: 8px;
   margin-top: 14px;
+}
+
+.step-list.horizontal {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
 }
 
 .step-row {
@@ -840,6 +1015,63 @@ button:disabled {
   line-height: 1.45;
 }
 
+.bible-panel {
+  display: grid;
+  gap: 11px;
+}
+
+.bible-panel p {
+  margin: 0;
+  color: #31413a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.mini-list {
+  display: grid;
+  gap: 7px;
+}
+
+.mini-list span {
+  padding: 8px;
+  border-radius: 8px;
+  background: #f5f7f3;
+  color: #5d6a63;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.comments-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.comments-panel button {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #dce2d8;
+  border-radius: 8px;
+  background: #fffdf7;
+  color: #28362f;
+  text-align: left;
+}
+
+.comments-panel button.resolved {
+  background: #f0f4ef;
+  color: #7a857e;
+  text-decoration: line-through;
+}
+
+.comments-panel strong {
+  font-size: 12px;
+}
+
+.comments-panel span {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .prompt-pipeline {
   display: grid;
   gap: 10px;
@@ -909,6 +1141,21 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .inspector-tabs,
+  .settings-panel,
+  .music-panel,
+  .voice-panel,
+  .billing-panel,
+  .bible-panel,
+  .comments-panel,
+  .notice-panel {
+    grid-column: 1 / -1;
+  }
+
+  .music-map-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .script-editor {
     min-height: 520px;
     padding: 24px;
@@ -947,6 +1194,18 @@ button:disabled {
 
   .control-panel {
     grid-template-columns: 1fr;
+  }
+
+  .analysis-strip,
+  .music-map-grid,
+  .settings-two-col,
+  .step-list.horizontal {
+    grid-template-columns: 1fr;
+  }
+
+  .title-input {
+    width: 100%;
+    font-size: 21px;
   }
 
   .prompt-actions,
