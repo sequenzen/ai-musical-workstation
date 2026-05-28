@@ -94,6 +94,7 @@ export type ActionResultKind =
 export type ActionResult = {
   id: string;
   kind: ActionResultKind;
+  status?: "success" | "pending" | "failed";
   title: string;
   sourceButton: string;
   summary: string;
@@ -101,6 +102,7 @@ export type ActionResult = {
   projectId: string;
   projectTitle: string;
   targetPage?: string;
+  retryJobId?: string;
   createdAt: string;
 };
 

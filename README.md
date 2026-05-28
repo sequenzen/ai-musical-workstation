@@ -45,7 +45,7 @@ cp .env.example .env
 
 현재 저장소는 GitHub Pages에 정적 MVP로 배포되어 있고, Render, Railway, Docker 백엔드 배포 준비도 되어 있습니다. 검증 상태는 `DEPLOYMENT_STATUS.md`에 정리되어 있습니다.
 
-제품 버튼/페이지 감사 기준은 `docs/product-audit-ko.md`에, 최종 기획 점검은 `docs/final-planning-check-ko.md`에 정리되어 있습니다.
+제품 버튼/페이지 감사 기준은 `docs/product-audit-ko.md`에, 최종 기획 점검은 `docs/final-planning-check-ko.md`에, UI 리뉴얼 기획서는 `docs/ui-renewal-plan-ko.md`에 정리되어 있습니다.
 
 ### Render
 
