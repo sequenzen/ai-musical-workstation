@@ -41,7 +41,7 @@ import {
   X,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   generateDraft,
   generateMusicAsset,
@@ -110,6 +110,8 @@ const settingSteps = ["기본", "세계", "인물", "구조", "음악", "제작"
 const dramaticFunctionFallbacks = ["Opening", "I Want Song", "Charm Song", "Conflict Duet", "Reprise", "11시 넘버", "Finale", "Tag"];
 
 function getCueDramaticFunction(cue: MusicCue, index: number) {
+  const titlePrefix = cue.title.split(":")[0]?.trim();
+  if (dramaticFunctionFallbacks.includes(titlePrefix)) return titlePrefix;
   const haystack = `${cue.title} ${cue.intent} ${cue.placement}`.toLowerCase();
   if (haystack.includes("opening") || haystack.includes("오프닝")) return "Opening";
   if (haystack.includes("i want") || haystack.includes("욕망")) return "I Want Song";
@@ -244,6 +246,7 @@ function ToolbarButton({
   return (
     <button className={`icon-button ${active ? "active" : ""}`} aria-label={label} title={label} onClick={onClick}>
       {icon}
+      <span>{label === "러닝타임 계산" ? "러닝타임" : label}</span>
     </button>
   );
 }
@@ -336,6 +339,15 @@ export function App() {
   const [shareLink, setShareLink] = useState("https://sequenzen.github.io/ai-musical-workstation/");
   const [mobileReviewLink, setMobileReviewLink] = useState("https://sequenzen.github.io/ai-musical-workstation/?view=mobile-review");
   const [checkoutStatus, setCheckoutStatus] = useState("아직 checkout 세션을 만들지 않았습니다.");
+  const [resultToast, setResultToast] = useState<ActionResult | null>(null);
+  const [highlightedCueId, setHighlightedCueId] = useState<number | null>(null);
+  const [readingReadyPulse, setReadingReadyPulse] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const composerPanelRef = useRef<HTMLElement | null>(null);
+  const controlPanelRef = useRef<HTMLElement | null>(null);
+  const scriptPageRef = useRef<HTMLDivElement | null>(null);
+  const skipNextScrollResetRef = useRef(false);
 
   const project = useMemo(
     () => projects.find((item) => item.id === activeProjectId) ?? projects[0] ?? initialProject,
@@ -356,6 +368,8 @@ export function App() {
   const musicRemaining = Math.max(0, plan.musicCredits - musicSpent);
   const readingRemaining = Math.max(0, plan.readingCredits - readingSpent);
   const readingCost = estimateReadingCost(project.script);
+  const musicCostLabel = `${musicGenerationCost} credits 사용`;
+  const readingCostLabel = `${readingCost} credits 사용`;
   const isStudio = planId === "studio";
   const totalCreditSpent = usageLedger.reduce((sum, event) => sum + event.amount, 0);
   const monthlyCreditRemaining = Math.max(0, costPolicy.monthlyCreditCap - totalCreditSpent);
@@ -367,10 +381,12 @@ export function App() {
     hasCheckoutSession,
   );
   const activeJobs = providerJobs.filter((job) => job.status === "queued" || job.status === "processing");
-  const lastSaveResult = actionResults.find((result) => result.sourceButton === "저장");
-  const saveStatusLabel = lastSaveResult
-    ? `저장됨 ${lastSaveResult.createdAt.slice(11, 16)}`
-    : "로컬 보관 중";
+  const saveStatusLabel = hasUnsavedChanges
+    ? "변경사항 있음"
+    : lastSavedAt
+      ? `로컬 저장됨 ${lastSavedAt.slice(11, 16)}`
+      : "로컬 자동 보관 중";
+  const saveButtonLabel = "저장";
   const activePageLabel: Record<MainPage, string> = {
     workspace: "작업실",
     bible: "바이블",
@@ -452,11 +468,40 @@ export function App() {
     localStorage.setItem(resultsStorageKey, JSON.stringify(actionResults));
   }, [actionResults]);
 
+  useEffect(() => {
+    if (skipNextScrollResetRef.current) {
+      skipNextScrollResetRef.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    composerPanelRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    controlPanelRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activePage]);
+
+  useEffect(() => {
+    if (!resultToast) return;
+    const timeoutId = window.setTimeout(() => setResultToast(null), 4200);
+    return () => window.clearTimeout(timeoutId);
+  }, [resultToast]);
+
+  useEffect(() => {
+    if (!highlightedCueId) return;
+    const timeoutId = window.setTimeout(() => setHighlightedCueId(null), 1600);
+    return () => window.clearTimeout(timeoutId);
+  }, [highlightedCueId]);
+
+  useEffect(() => {
+    if (!readingReadyPulse) return;
+    const timeoutId = window.setTimeout(() => setReadingReadyPulse(false), 1600);
+    return () => window.clearTimeout(timeoutId);
+  }, [readingReadyPulse]);
+
   function addUsage(event: UsageEvent) {
     setUsageLedger((current) => [event, ...current].slice(0, 40));
   }
 
   function updateCurrentProject(updater: (current: ProjectState) => ProjectState) {
+    setHasUnsavedChanges(true);
     setProjects((current) => current.map((item) => (item.id === project.id ? updater(item) : item)));
   }
 
@@ -517,9 +562,10 @@ export function App() {
     retryJobId?: string;
     openResults?: boolean;
   }) {
+    const status = input.status ?? "success";
     const result = createActionResult({
       kind: input.kind,
-      status: input.status ?? "success",
+      status,
       title: input.title,
       sourceButton: input.sourceButton,
       summary: input.summary,
@@ -530,7 +576,8 @@ export function App() {
       retryJobId: input.retryJobId,
     });
     setActionResults((current) => [result, ...current].slice(0, 80));
-    if (input.openResults) setIsResultDrawerOpen(true);
+    setResultToast(result);
+    if (input.openResults && status === "failed") setIsResultDrawerOpen(true);
     return result;
   }
 
@@ -647,6 +694,7 @@ export function App() {
     });
     setActiveProjectId(version.snapshot.id);
     setActivePage("workspace");
+    setHasUnsavedChanges(true);
     recordActionResult({
       kind: "ops",
       title: "버전 복원 결과",
@@ -767,9 +815,11 @@ export function App() {
     setProviderJobs((current) => current.map((item) => (item.id === jobId ? next : item)));
     if (next.status === "ready" && next.type === "music" && next.cueId) {
       updateCue(next.cueId, { status: "ready" });
+      setHighlightedCueId(next.cueId);
     }
     if (next.status === "ready" && next.type === "reading") {
       setReadingStatus("ready");
+      setReadingReadyPulse(true);
     }
     recordActionResult({
       kind: next.type === "music" ? "music" : "reading",
@@ -836,6 +886,7 @@ export function App() {
     setActiveCue(1);
     setActivePage("workspace");
     setActiveInspector("settings");
+    setHasUnsavedChanges(true);
     setNotice("새 프로젝트를 만들었습니다. 한 문장만 적어도 오른쪽 조건과 함께 초안을 만들 수 있습니다.");
   }
 
@@ -870,6 +921,7 @@ export function App() {
     setProjects((current) => [copy, ...current]);
     setActiveProjectId(copy.id);
     setActivePage("workspace");
+    setHasUnsavedChanges(true);
     recordActionResult({
       kind: "system",
       title: "프로젝트 복사 결과",
@@ -914,7 +966,10 @@ export function App() {
   }
 
   function handleSave() {
+    const savedAt = new Date().toISOString();
     localStorage.setItem(projectsStorageKey, JSON.stringify(projects));
+    setHasUnsavedChanges(false);
+    setLastSavedAt(savedAt);
     recordActionResult({
       kind: "system",
       title: "저장 결과",
@@ -1091,6 +1146,7 @@ export function App() {
       }));
       setProviderJobs((current) => [job, ...current].slice(0, 30));
       addUsage(makeUsageEvent("music", musicGenerationCost, cue.title));
+      if (music.status === "ready") setHighlightedCueId(cue.id);
       recordActionResult({
         kind: "music",
         status: music.status === "ready" ? "success" : "pending",
@@ -1209,6 +1265,7 @@ export function App() {
     setProviderJobs((current) => [job, ...current].slice(0, 30));
     addUsage(makeUsageEvent("reading", readingCost, `전체 리딩 ${result.durationSeconds}s`));
     setReadingStatus(result.status === "ready" ? "ready" : "generating");
+    if (result.status === "ready") setReadingReadyPulse(true);
     recordActionResult({
       kind: "reading",
       status: result.status === "ready" ? "success" : "pending",
@@ -1250,7 +1307,9 @@ export function App() {
   function handleViewCueInScript(cue: MusicCue) {
     setActiveCue(cue.id);
     setActiveInspector("music");
+    skipNextScrollResetRef.current = true;
     setActivePage("workspace");
+    window.setTimeout(() => scriptPageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
     setNotice(`${cue.title}의 대본 위치를 작업실에서 확인합니다. 위치: ${cue.placement}`);
   }
 
@@ -1751,7 +1810,12 @@ export function App() {
           <div className="number-timeline" aria-label="대본 흐름 기준 넘버 타임라인">
             <div className="timeline-rail" aria-hidden="true" />
             {numberTimeline.map(({ cue, dramaticFunction, progress, beat, sceneAnchor }, index) => (
-              <article className={`number-timeline-card ${cue.id === activeCue ? "active" : ""}`} key={cue.id}>
+              <article
+                className={`number-timeline-card ${cue.id === activeCue ? "active" : ""} ${
+                  cue.id === highlightedCueId ? "just-ready" : ""
+                }`}
+                key={cue.id}
+              >
                 <div className="timeline-marker">
                   <span>{index + 1}</span>
                 </div>
@@ -1839,7 +1903,7 @@ export function App() {
           </div>
 
           <div className="reading-status-strip">
-            <article>
+            <article className={readingReadyPulse ? "just-ready" : ""}>
               <div className="panel-heading">
                 <Mic2 size={17} />
                 <strong>리딩 상태</strong>
@@ -1866,7 +1930,7 @@ export function App() {
           </div>
 
           <div className="reading-workflow-grid">
-            <article className="share-card reading-cast-card">
+            <article className={`share-card reading-cast-card ${readingReadyPulse ? "just-ready" : ""}`}>
               <div className="panel-heading">
                 <Users size={17} />
                 <strong>캐릭터별 음성 캐스팅</strong>
@@ -1883,7 +1947,7 @@ export function App() {
               </div>
               <button className="primary-button" onClick={handleGenerateReading} disabled={readingStatus === "generating"}>
                 <Mic2 size={16} />
-                {readingStatus === "ready" ? "전체 리딩 다시 생성" : `전체 리딩 생성 -${readingCost}`}
+                {readingStatus === "ready" ? `다시 생성 · ${readingCostLabel}` : `전체 리딩 생성 · ${readingCostLabel}`}
               </button>
             </article>
 
@@ -2475,6 +2539,8 @@ export function App() {
                 setActiveProjectId(item.id);
                 setActiveCue(item.cues[0]?.id ?? 1);
                 setActivePage("workspace");
+                setHasUnsavedChanges(false);
+                setLastSavedAt(null);
                 setNotice(`${item.title} 프로젝트로 전환했습니다.`);
               }}
             >
@@ -2497,14 +2563,15 @@ export function App() {
             />
           </div>
           <div className="top-actions">
-            <button
-              className="save-status-button"
-              onClick={handleSave}
-              title={`저장 상태 · A4 ${generatedPages}쪽 · ${estimatedTokens.toLocaleString()} tokens 예상`}
-            >
-              <Save size={16} />
-              <span>{saveStatusLabel}</span>
-            </button>
+            <div className={`save-cluster ${hasUnsavedChanges ? "dirty" : ""}`}>
+              <span className="save-state-chip" title={`A4 ${generatedPages}쪽 · ${estimatedTokens.toLocaleString()} tokens 예상`}>
+                {saveStatusLabel}
+              </span>
+              <button className="save-action-button" onClick={handleSave} title="현재 프로젝트 저장">
+                <Save size={16} />
+                <span>{saveButtonLabel}</span>
+              </button>
+            </div>
             <button className="share-top-button" onClick={() => openPage("readingShare")}>
               <Link2 size={16} />
               공유
@@ -2533,7 +2600,7 @@ export function App() {
         </header>
 
         <div className="workspace-grid">
-          <section className="composer-panel">
+          <section className="composer-panel" ref={composerPanelRef}>
             {activePage === "workspace" ? (
               <>
             <div className="prompt-card prompt-card-quiet">
@@ -2589,7 +2656,7 @@ export function App() {
               <ToolbarButton icon={<Mic2 size={17} />} label="리딩 모드" active={readingMode} onClick={handleToggleReadingMode} />
             </div>
 
-            <div className="script-page">
+            <div className="script-page" ref={scriptPageRef}>
               <div className="page-meta">
                 <span>{readingMode ? "리딩 모드" : "편집 모드"} / A4 {generatedPages}쪽 목표</span>
                 <span>{project.settings.outputMode}</span>
@@ -2651,7 +2718,7 @@ export function App() {
             )}
           </section>
 
-          <aside className="control-panel">
+          <aside className="control-panel" ref={controlPanelRef}>
             {activePage === "bible" && (
               <section className="bible-inspector-panel">
                 <div className="panel-title">
@@ -3116,7 +3183,7 @@ export function App() {
                   <h2>{activePage === "songs" ? "큐 인스펙터" : "음악 큐"}</h2>
                 </div>
 
-                <div className="cue-spotlight">
+                <div className={`cue-spotlight ${activeCueData.id === highlightedCueId ? "just-ready" : ""}`}>
                   <div className="cue-number">#{activeCueData.id}</div>
                   <div>
                     <p>{activeCueData.act}</p>
@@ -3190,7 +3257,7 @@ export function App() {
                   </label>
                 </div>
 
-                <div className="waveform" aria-label="음악 미리듣기 파형">
+                <div className={`waveform ${activeCueData.id === highlightedCueId ? "just-ready" : ""}`} aria-label="음악 미리듣기 파형">
                   {Array.from({ length: 34 }).map((_, index) => (
                     <span key={index} style={{ height: `${18 + ((index * 13) % 44)}px` }} />
                   ))}
@@ -3213,7 +3280,7 @@ export function App() {
                     disabled={activeCueData.status === "generating"}
                   >
                     <Sparkles size={16} />
-                    음악 생성 -{musicGenerationCost}
+                    음악 생성 · {musicCostLabel}
                   </button>
                   <button
                     className="play-button"
@@ -3247,8 +3314,8 @@ export function App() {
                   {!isStudio
                     ? "Studio 플랜에서 리딩 생성"
                     : readingStatus === "ready"
-                      ? "샘플 리딩 준비됨"
-                      : `전체 리딩 생성 -${readingCost}`}
+                      ? `다시 생성 · ${readingCostLabel}`
+                      : `전체 리딩 생성 · ${readingCostLabel}`}
                 </button>
               </section>
             )}
@@ -3290,6 +3357,27 @@ export function App() {
           </aside>
         </div>
       </section>
+
+      {resultToast && (
+        <div className={`result-toast ${getActionResultStatus(resultToast)}`} role="status" aria-live="polite">
+          <div>
+            <strong>{resultToast.sourceButton}</strong>
+            <span>{resultToast.summary}</span>
+          </div>
+          <button
+            className="secondary-button compact"
+            onClick={() => {
+              setIsResultDrawerOpen(true);
+              setResultToast(null);
+            }}
+          >
+            보기
+          </button>
+          <button className="icon-button" aria-label="결과 알림 닫기" title="닫기" onClick={() => setResultToast(null)}>
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {isResultDrawerOpen && (
         <div className="drawer-backdrop" role="presentation" onClick={() => setIsResultDrawerOpen(false)}>
@@ -3750,6 +3838,22 @@ export function App() {
           </aside>
         </div>
       )}
+
+      <nav className="mobile-bottom-nav" aria-label="모바일 주요 화면">
+        {(
+          [
+            ["workspace", "작업실", FileText],
+            ["bible", "바이블", BookOpenText],
+            ["songs", "넘버", Music2],
+            ["readingShare", "리딩", Mic2],
+          ] as const
+        ).map(([page, label, Icon]) => (
+          <button className={activePage === page ? "active" : ""} key={page} onClick={() => openPage(page)}>
+            <Icon size={17} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
 
       <div className="mobile-composer">
         <input
